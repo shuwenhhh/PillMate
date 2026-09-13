@@ -123,9 +123,41 @@ class Observation(StrictModel):
     evidence_ids: list[str] = Field(min_length=1, max_length=50)
 
 
-class AssistantResponse(StrictModel):
+class Evidence(StrictModel):
+    id: str = Field(min_length=1, max_length=120)
+    statistic: str = Field(min_length=1, max_length=80)
+    value: int | float | str
+    unit: str | None = Field(default=None, max_length=40)
+    relation: Literal["before", "after", "same_time", "same_record"] | None = None
+    source_record_ids: list[str] = Field(min_length=1, max_length=1000)
+
+
+class DeterministicSummary(StrictModel):
+    evidence: list[Evidence] = Field(default_factory=list, max_length=5000)
+
+
+class AssistantNarrative(StrictModel):
     status: Literal["ok", "needs_clarification", "refusal", "safety_escalation"]
     summary: str = Field(min_length=1, max_length=1200)
     observations: list[Observation] = Field(default_factory=list, max_length=10)
     follow_up_questions: list[str] = Field(default_factory=list, max_length=5)
     disclaimer: str = Field(min_length=1, max_length=300)
+
+
+class AssistantResponse(AssistantNarrative):
+    evidence: list[Evidence] = Field(default_factory=list, max_length=5000)
+
+    @model_validator(mode="after")
+    def observations_must_reference_included_evidence(self) -> Self:
+        evidence_ids = [item.id for item in self.evidence]
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError("evidence IDs must be unique")
+        unknown_ids = {
+            evidence_id
+            for observation in self.observations
+            for evidence_id in observation.evidence_ids
+            if evidence_id not in evidence_ids
+        }
+        if unknown_ids:
+            raise ValueError("every observation must reference included evidence")
+        return self

@@ -176,14 +176,23 @@ def test_response_contract_accepts_camel_case_fields() -> None:
             "status": "ok",
             "summary": "One record was supplied.",
             "observations": [
-                {"text": "One event was recorded.", "evidenceIds": ["medication-event-1"]}
+                {"text": "One event was recorded.", "evidenceIds": ["evidence-1"]}
+            ],
+            "evidence": [
+                {
+                    "id": "evidence-1",
+                    "statistic": "medication.taken_count",
+                    "value": 1,
+                    "unit": "records",
+                    "sourceRecordIds": ["medication-event-1"],
+                }
             ],
             "followUpQuestions": [],
             "disclaimer": "Informational summary only.",
         }
     )
 
-    assert response.observations[0].evidence_ids == ["medication-event-1"]
+    assert response.observations[0].evidence_ids == ["evidence-1"]
 
 
 def test_response_contract_rejects_empty_evidence() -> None:
@@ -193,6 +202,20 @@ def test_response_contract_rejects_empty_evidence() -> None:
                 "status": "ok",
                 "summary": "One record was supplied.",
                 "observations": [{"text": "One event was recorded.", "evidenceIds": []}],
+                "followUpQuestions": [],
+                "disclaimer": "Informational summary only.",
+            }
+        )
+
+
+def test_response_contract_rejects_untraceable_observation() -> None:
+    with pytest.raises(ValidationError, match="included evidence"):
+        AssistantResponse.model_validate(
+            {
+                "status": "ok",
+                "summary": "One record was supplied.",
+                "observations": [{"text": "One event was recorded.", "evidenceIds": ["missing"]}],
+                "evidence": [],
                 "followUpQuestions": [],
                 "disclaimer": "Informational summary only.",
             }
