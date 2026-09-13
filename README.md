@@ -51,3 +51,8 @@ Ending a medicine marks it inactive and keeps its existing medication history. *
 - The notification service is currently an abstraction point; local notification scheduling still needs to be connected to the platform notification APIs.
 - Future-date schedule generation is not yet a separate scheduling engine; Records displays saved records for the selected date.
 
+## AI Assistant product requirements
+
+- [Product and safety boundary](docs/assistant-product-safety-boundary.md)
+- [Privacy, consent, and deletion draft](docs/privacy-consent-and-deletion-draft.md)
+- [Normative question/status examples](docs/assistant-question-examples.json)
