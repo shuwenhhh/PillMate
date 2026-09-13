@@ -35,6 +35,11 @@ AI endpoint: `POST /v1/assistant/analyze`
 The endpoint intentionally returns `503` until `OPENAI_API_KEY` is configured. Do not put a
 real key in source control.
 
+`OPENAI_MODEL` selects the Responses API model and defaults to `gpt-5-mini`. The backend uses
+the official OpenAI Python SDK's Pydantic parsing helper so model output must match the
+structured assistant schema. Every request explicitly sets `store=False`; it does not attach a
+conversation or previous response ID, so calls do not use long-lived conversation state.
+
 ## Safety boundary
 
 The assistant summarizes supplied records only. It must not diagnose, interpret a reading as
@@ -46,6 +51,5 @@ that boundary.
 
 1. Add authentication (for example, verify Sign in with Apple tokens at the backend).
 2. Add per-user rate limits and a redacted request ID log.
-3. Add deterministic statistics before the model call.
-4. Connect `RecordsAssistantView` with Swift `URLSession`.
-5. Add adversarial safety tests and deploy behind HTTPS.
+3. Connect `RecordsAssistantView` with Swift `URLSession`.
+4. Add adversarial safety tests and deploy behind HTTPS.

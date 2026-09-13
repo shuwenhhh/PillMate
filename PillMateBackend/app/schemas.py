@@ -136,6 +136,23 @@ class DeterministicSummary(StrictModel):
     evidence: list[Evidence] = Field(default_factory=list, max_length=5000)
 
 
+class OpenAIObservation(StrictModel):
+    """Provider schema limited to constraints supported by Structured Outputs."""
+
+    text: str
+    evidence_ids: list[str]
+
+
+class OpenAIAssistantOutput(StrictModel):
+    """Pydantic schema sent to the OpenAI Responses API."""
+
+    status: Literal["ok", "needs_clarification", "refusal", "safety_escalation"]
+    summary: str
+    observations: list[OpenAIObservation]
+    follow_up_questions: list[str]
+    disclaimer: str
+
+
 class AssistantNarrative(StrictModel):
     status: Literal["ok", "needs_clarification", "refusal", "safety_escalation"]
     summary: str = Field(min_length=1, max_length=1200)
