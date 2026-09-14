@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		B60000000000000000000006 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F344A707303931100019BE31 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F344A70E303931100019BE31;
+			remoteInfo = PillMate;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		F344A70F303931100019BE31 /* PillMate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PillMate.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B60000000000000000000001 /* PillMateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PillMateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = PillMate;
 			sourceTree = "<group>";
 		};
+		B60000000000000000000002 /* PillMateTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PillMateTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		F344A70C303931100019BE31 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B60000000000000000000003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				F344A711303931100019BE31 /* PillMate */,
+				B60000000000000000000002 /* PillMateTests */,
 				F344A710303931100019BE31 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				F344A70F303931100019BE31 /* PillMate.app */,
+				B60000000000000000000001 /* PillMateTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = F344A70F303931100019BE31 /* PillMate.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B60000000000000000000008 /* PillMateTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B60000000000000000000009 /* Build configuration list for PBXNativeTarget "PillMateTests" */;
+			buildPhases = (
+				B60000000000000000000004 /* Sources */,
+				B60000000000000000000003 /* Frameworks */,
+				B60000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B60000000000000000000007 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B60000000000000000000002 /* PillMateTests */,
+			);
+			name = PillMateTests;
+			packageProductDependencies = (
+			);
+			productName = PillMateTests;
+			productReference = B60000000000000000000001 /* PillMateTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +130,10 @@
 				TargetAttributes = {
 					F344A70E303931100019BE31 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					B60000000000000000000008 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F344A70E303931100019BE31;
 					};
 				};
 			};
@@ -100,12 +152,20 @@
 			projectRoot = "";
 			targets = (
 				F344A70E303931100019BE31 /* PillMate */,
+				B60000000000000000000008 /* PillMateTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F344A70D303931100019BE31 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B60000000000000000000005 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +182,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B60000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B60000000000000000000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F344A70E303931100019BE31 /* PillMate */;
+			targetProxy = B60000000000000000000006 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F344A718303931110019BE31 /* Debug */ = {
@@ -308,6 +383,50 @@
 			};
 			name = Release;
 		};
+		B6000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = P5S79Z5S4X;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = misaki.PillMateTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PillMate.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PillMate";
+			};
+			name = Debug;
+		};
+		B6000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = P5S79Z5S4X;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = misaki.PillMateTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PillMate.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PillMate";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -325,6 +444,15 @@
 			buildConfigurations = (
 				F344A71B303931110019BE31 /* Debug */,
 				F344A71C303931110019BE31 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B60000000000000000000009 /* Build configuration list for PBXNativeTarget "PillMateTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B6000000000000000000000A /* Debug */,
+				B6000000000000000000000B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
