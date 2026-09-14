@@ -14,9 +14,18 @@ class SafetyService:
             model=settings.openai_moderation_model,
             input=text,
         )
-        return bool(result.results and result.results[0].flagged)
+        if not result.results:
+            raise RuntimeError("moderation response did not include a result")
+        return bool(result.results[0].flagged)
 
     @staticmethod
     def request_text(payload: dict) -> str:
         # Keep moderation input deterministic and avoid logging this string.
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+    @staticmethod
+    def output_text(payload: dict) -> str:
+        # The model's disclaimer is ignored and replaced server-side, so it is not part
+        # of the generated content safety decision.
+        moderated_payload = {key: value for key, value in payload.items() if key != "disclaimer"}
+        return json.dumps(moderated_payload, ensure_ascii=False, separators=(",", ":"))

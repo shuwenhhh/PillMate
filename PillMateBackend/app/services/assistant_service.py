@@ -3,7 +3,14 @@ import json
 from openai import AsyncOpenAI
 
 from ..config import settings
-from ..policy import DISCLAIMER, SAFETY_INSTRUCTIONS, contains_medical_advice, refusal_response
+from ..policy import (
+    DISCLAIMER,
+    SAFETY_INSTRUCTIONS,
+    classify_request_text,
+    contains_medical_advice,
+    refusal_response,
+    safety_escalation_response,
+)
 from ..schemas import (
     AssistantNarrative,
     AssistantRequest,
@@ -21,9 +28,15 @@ class AssistantService:
 
     async def generate(self, request: AssistantRequest) -> AssistantResponse:
         request_payload = request.model_dump(mode="json")
-        moderation_text = self.safety.request_text(request_payload)
+        moderation_text = SafetyService.request_text(request_payload)
 
-        if await self.safety.is_flagged(moderation_text):
+        input_flagged = await self.safety.is_flagged(moderation_text)
+        request_disposition = classify_request_text(moderation_text)
+        if request_disposition == "safety_escalation":
+            return safety_escalation_response(request.language)
+        if request_disposition == "refusal":
+            return refusal_response()
+        if input_flagged:
             return refusal_response("I can't process this request, but I can summarize non-sensitive record patterns.")
 
         deterministic_summary = summarize_records(request)
@@ -49,9 +62,21 @@ class AssistantService:
 
         narrative = AssistantNarrative.model_validate(parsed.model_dump(mode="python"))
 
-        output_text = json.dumps(narrative.model_dump(mode="json"), ensure_ascii=False)
-        if await self.safety.is_flagged(output_text) or contains_medical_advice(output_text):
+        output_payload = narrative.model_dump(mode="json")
+        output_text = SafetyService.output_text(output_payload)
+        output_flagged = await self.safety.is_flagged(output_text)
+        output_disposition = classify_request_text(output_text)
+        if output_disposition == "safety_escalation":
+            return safety_escalation_response(request.language)
+        if output_flagged or contains_medical_advice(output_text):
             return refusal_response()
+
+        # The model cannot author refusal or emergency copy. Those sensitive responses
+        # are replaced by short, deterministic server messages.
+        if narrative.status == "refusal":
+            return refusal_response()
+        if narrative.status == "safety_escalation":
+            return safety_escalation_response(request.language)
 
         allowed_evidence_ids = {item.id for item in deterministic_summary.evidence}
         if any(

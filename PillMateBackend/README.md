@@ -45,7 +45,10 @@ conversation or previous response ID, so calls do not use long-lived conversatio
 The assistant summarizes supplied records only. It must not diagnose, interpret a reading as
 a disease, recommend starting/stopping/changing medication, or claim that one event caused
 another. The API returns a refusal or neutral emergency escalation when a request crosses
-that boundary.
+that boundary. Every model-bound request is moderated first, and every generated narrative is
+moderated again before it can be returned. Server-side rules then verify that observation
+evidence IDs exist in the deterministic summary and replace the model's disclaimer with the
+fixed application disclaimer.
 
 ## Next steps
 
