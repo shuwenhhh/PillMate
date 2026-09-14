@@ -6,6 +6,7 @@ from typing import NoReturn
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -62,6 +63,25 @@ app.add_middleware(
     allow_methods=["DELETE", "GET", "POST"],
     allow_headers=["Authorization", "Content-Type", "X-Apple-Nonce", "X-Request-ID"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def redacted_validation_error(
+    request: Request,
+    error: RequestValidationError,
+) -> JSONResponse:
+    """Return useful schema errors without echoing health data from the request."""
+
+    request.state.error_type = "ValidationError"
+    safe_errors = [
+        {
+            "type": item.get("type", "validation_error"),
+            "loc": list(item.get("loc", ())),
+            "msg": item.get("msg", "Invalid request value"),
+        }
+        for item in error.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": safe_errors})
 
 
 def _safe_request_id(value: str | None) -> str:

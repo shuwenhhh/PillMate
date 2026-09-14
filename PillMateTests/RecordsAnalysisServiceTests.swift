@@ -134,21 +134,173 @@ final class RecordsAnalysisServiceTests: XCTestCase {
         XCTAssertEqual(record.heartRate, originalValues.2)
     }
 
+    func testSwiftDataPayloadTruncatesFieldsAndOmitsInvalidVitals() async throws {
+        let session = makeSession()
+        let service = makeService(
+            session: session,
+            localeIdentifier: "en_US",
+            timeZoneIdentifier: "America/Los_Angeles"
+        )
+        stubSuccessfulResponse()
+        let eventDate = makeDate(day: 14, hour: 9, timeZoneIdentifier: "America/Los_Angeles")
+        let medicine = MedicineEntity(
+            name: "",
+            dose: String(repeating: "d", count: 140),
+            schedule: String(repeating: "s", count: 140),
+            frequency: String(repeating: "f", count: 100),
+            originalQuantity: 10,
+            isActive: false,
+            createdAt: eventDate
+        )
+        let record = MedicationRecordEntity(
+            recordDate: eventDate,
+            medicineName: "",
+            detail: "",
+            timeWindow: String(repeating: "w", count: 140),
+            takenAt: "  9:00 AM  ",
+            interval: String(repeating: "i", count: 100),
+            feeling: "  Fine  ",
+            notes: String(repeating: "n", count: 1_200),
+            heartRate: 301,
+            systolic: 70,
+            diastolic: 80
+        )
+
+        _ = try await service.analyze(
+            questionType: .freeText,
+            question: String(repeating: "q", count: 1_200),
+            days: 1,
+            medications: [medicine],
+            medicationRecords: [record],
+            journalEntries: [],
+            now: makeDate(day: 14, hour: 12, timeZoneIdentifier: "America/Los_Angeles")
+        )
+
+        let body = try XCTUnwrap(URLProtocolStub.receivedBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["language"] as? String, "en-US")
+        XCTAssertEqual(json["timezone"] as? String, "America/Los_Angeles")
+        XCTAssertEqual((json["userQuestion"] as? String)?.count, 1_000)
+        let dateRange = try XCTUnwrap(json["dateRange"] as? [String: String])
+        XCTAssertEqual(dateRange, ["start": "2026-09-14", "end": "2026-09-14"])
+
+        let medications = try XCTUnwrap(json["medications"] as? [[String: Any]])
+        XCTAssertEqual(medications[0]["name"] as? String, "Unnamed medicine")
+        XCTAssertEqual((medications[0]["dose"] as? String)?.count, 120)
+        XCTAssertEqual((medications[0]["timeWindow"] as? String)?.count, 120)
+        XCTAssertEqual((medications[0]["frequency"] as? String)?.count, 80)
+        XCTAssertEqual(medications[0]["isActive"] as? Bool, false)
+
+        let events = try XCTUnwrap(json["medicationEvents"] as? [[String: Any]])
+        XCTAssertEqual((events[0]["scheduledWindow"] as? String)?.count, 120)
+        XCTAssertEqual(events[0]["takenAt"] as? String, "9:00 AM")
+        XCTAssertEqual(events[0]["feeling"] as? String, "Fine")
+        XCTAssertEqual((events[0]["interval"] as? String)?.count, 80)
+        XCTAssertEqual((events[0]["notes"] as? String)?.count, 1_000)
+        XCTAssertNil(events[0]["heartRate"])
+        XCTAssertNil(events[0]["bloodPressure"])
+    }
+
+    func testMoreThanMaximumSwiftDataRecordsFailsBeforeNetworking() async {
+        let service = makeService(session: makeSession())
+        let records = (0...500).map { index in
+            MedicationRecordEntity(
+                recordDate: makeDate(day: 14, hour: index % 24),
+                medicineName: "Example medicine",
+                detail: "10 mg",
+                timeWindow: "Morning",
+                takenAt: "09:00",
+                interval: "24 hours"
+            )
+        }
+
+        do {
+            _ = try await service.analyze(
+                questionType: .consistency,
+                question: "Summarize my records.",
+                days: 30,
+                medications: [makeMedicine()],
+                medicationRecords: records,
+                journalEntries: [],
+                now: makeDate(day: 14, hour: 12)
+            )
+            XCTFail("Expected the record limit to be enforced")
+        } catch let error as RecordsAnalysisError {
+            XCTAssertEqual(error, .tooManyRecords)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertNil(URLProtocolStub.receivedRequest)
+    }
+
+    func testInvalidServerJSONReturnsRecoverableInvalidResponse() async {
+        URLProtocolStub.response = HTTPURLResponse(
+            url: URL(string: "https://example.test/v1/assistant/analyze")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )
+        URLProtocolStub.responseData = Data("{not-valid-json".utf8)
+        let service = makeService(session: makeSession())
+
+        do {
+            _ = try await service.analyze(
+                questionType: .vitals,
+                question: "Summarize my records.",
+                days: 30,
+                medications: [makeMedicine()],
+                medicationRecords: [makeMedicationRecord(notes: "Local only")],
+                journalEntries: [],
+                now: makeDate(day: 14, hour: 12)
+            )
+            XCTFail("Expected invalid JSON to be rejected")
+        } catch let error as RecordsAnalysisError {
+            XCTAssertEqual(error, .invalidResponse)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     private func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
         return URLSession(configuration: configuration)
     }
 
-    private func makeService(session: URLSession) -> RecordsAnalysisService {
+    private func makeService(
+        session: URLSession,
+        localeIdentifier: String = "zh_CN",
+        timeZoneIdentifier: String = "Asia/Shanghai"
+    ) -> RecordsAnalysisService {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        calendar.timeZone = TimeZone(identifier: timeZoneIdentifier)!
         return RecordsAnalysisService(
             baseURL: URL(string: "https://example.test")!,
             session: session,
             calendar: calendar,
-            localeIdentifier: "zh_CN",
-            timeZoneIdentifier: "Asia/Shanghai"
+            localeIdentifier: localeIdentifier,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+    }
+
+    private func stubSuccessfulResponse() {
+        URLProtocolStub.response = HTTPURLResponse(
+            url: URL(string: "https://example.test/v1/assistant/analyze")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )
+        URLProtocolStub.responseData = Data(
+            """
+            {
+              "status": "ok",
+              "summary": "One record was found.",
+              "observations": [],
+              "followUpQuestions": [],
+              "disclaimer": "This is an informational summary of your records, not a diagnosis or treatment recommendation."
+            }
+            """.utf8
         )
     }
 
@@ -191,9 +343,13 @@ final class RecordsAnalysisServiceTests: XCTestCase {
         )
     }
 
-    private func makeDate(day: Int, hour: Int = 0) -> Date {
+    private func makeDate(
+        day: Int,
+        hour: Int = 0,
+        timeZoneIdentifier: String = "Asia/Shanghai"
+    ) -> Date {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        calendar.timeZone = TimeZone(identifier: timeZoneIdentifier)!
         return calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour))!
     }
 }
