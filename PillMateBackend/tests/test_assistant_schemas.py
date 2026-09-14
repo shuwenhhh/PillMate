@@ -151,20 +151,33 @@ def test_request_rejects_unplanned_nested_health_fields() -> None:
         AssistantRequest.model_validate(payload)
 
 
-def test_endpoint_rejects_invalid_payload_before_service_call() -> None:
+def test_endpoint_rejects_invalid_payload_before_service_call(
+    auth_headers: dict[str, str],
+) -> None:
     payload = valid_payload()
     payload["deviceId"] = "device-123"
 
-    response = TestClient(app).post("/v1/assistant/analyze", json=payload)
+    response = TestClient(app).post(
+        "/v1/assistant/analyze",
+        json=payload,
+        headers=auth_headers,
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["type"] == "extra_forbidden"
 
 
-def test_endpoint_accepts_valid_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_accepts_valid_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
+) -> None:
     monkeypatch.setattr(settings, "openai_api_key", None)
 
-    response = TestClient(app).post("/v1/assistant/analyze", json=valid_payload())
+    response = TestClient(app).post(
+        "/v1/assistant/analyze",
+        json=valid_payload(),
+        headers=auth_headers,
+    )
 
     assert response.status_code == 503
     assert response.json() == {"detail": "AI service is not configured"}

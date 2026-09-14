@@ -92,7 +92,11 @@ class DateRange(StrictModel):
 
 
 class AssistantRequest(StrictModel):
-    request_id: str = Field(min_length=1, max_length=64)
+    request_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+    )
     date_range: DateRange
     question_type: QuestionType
     user_question: str = Field(default="", max_length=1000)
@@ -178,3 +182,15 @@ class AssistantResponse(AssistantNarrative):
         if unknown_ids:
             raise ValueError("every observation must reference included evidence")
         return self
+
+
+class RequestContextResponse(StrictModel):
+    request_id: str
+    created_at: datetime
+    completed_at: datetime | None = None
+    status_code: int | None = None
+    error_type: str | None = None
+
+
+class DeleteRequestDataResponse(StrictModel):
+    deleted_count: int = Field(ge=0)

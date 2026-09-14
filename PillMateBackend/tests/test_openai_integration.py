@@ -96,6 +96,7 @@ def test_settings_reads_openai_model_from_environment(monkeypatch: pytest.Monkey
 
 def test_endpoint_without_api_key_returns_503_before_creating_client(
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
 ) -> None:
     monkeypatch.setattr(settings, "openai_api_key", None)
 
@@ -104,7 +105,11 @@ def test_endpoint_without_api_key_returns_503_before_creating_client(
 
     monkeypatch.setattr(main_module, "AssistantService", unexpected_service_creation)
 
-    response = TestClient(app).post("/v1/assistant/analyze", json=assistant_payload())
+    response = TestClient(app).post(
+        "/v1/assistant/analyze",
+        json=assistant_payload(),
+        headers=auth_headers,
+    )
 
     assert response.status_code == 503
     assert response.json() == {"detail": "AI service is not configured"}
@@ -112,6 +117,7 @@ def test_endpoint_without_api_key_returns_503_before_creating_client(
 
 def test_configured_endpoint_returns_structured_assistant_response_without_state(
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
 ) -> None:
     request = AssistantRequest.model_validate(assistant_payload())
     evidence_id = summarize_records(request).evidence[0].id
@@ -124,7 +130,11 @@ def test_configured_endpoint_returns_structured_assistant_response_without_state
     monkeypatch.setattr(settings, "openai_model", configured_model)
     monkeypatch.setattr(main_module, "AssistantService", lambda: service)
 
-    response = TestClient(app).post("/v1/assistant/analyze", json=assistant_payload())
+    response = TestClient(app).post(
+        "/v1/assistant/analyze",
+        json=assistant_payload(),
+        headers=auth_headers,
+    )
 
     assert response.status_code == 200
     parsed_response = AssistantResponse.model_validate(response.json())

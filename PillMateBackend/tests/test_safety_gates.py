@@ -149,6 +149,7 @@ def test_dangerous_description_gets_neutral_local_safety_escalation() -> None:
 )
 def test_http_endpoint_returns_server_controlled_safety_status(
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
     question: str,
     language: str,
     expected_status: str,
@@ -161,6 +162,7 @@ def test_http_endpoint_returns_server_controlled_safety_status(
     response = TestClient(app).post(
         "/v1/assistant/analyze",
         json=safety_payload(question, language=language),
+        headers=auth_headers,
     )
 
     assert response.status_code == 200
