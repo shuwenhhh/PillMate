@@ -2,9 +2,9 @@
 
 **Status:** Product and legal draft; not approved for production publication
 
-**Version:** 0.1
+**Version:** 0.2
 
-**Last updated:** 2026-09-14
+**Last updated:** 2026-09-15
 
 **Scope:** data processed specifically to provide the PillMate AI Assistant
 
@@ -21,13 +21,15 @@ The AI Assistant summarizes the PillMate records you select. It can describe cou
 Only after you choose to run the AI Assistant, PillMate sends the minimum information needed for that request to PillMate's backend and its AI service provider. Depending on your selection, this may include:
 
 - the requested date range, time zone, language, question, request identifier, and consent version;
-- medicine name, dose label, schedule window, frequency, and whether the medicine is active;
-- recorded dose/check-in dates and times, feelings, intervals, heart rate, blood pressure, and notes; and
-- journal mood, symptoms, severity, heart rate, blood pressure, notes, and record times.
+- only medicines referenced by a selected medication event, with the medicine name and, when relevant to the question, its dose label, schedule window, or frequency;
+- recorded dose/check-in dates and times and, when relevant to the question, feelings, heart rate, blood pressure, and check-in notes; and
+- when relevant to the question, journal mood, symptoms, severity, heart rate, blood pressure, and record times. Journal notes are excluded.
+
+Persistent local record identifiers are replaced with temporary, request-only identifiers before transmission. Preset questions further minimize the payload: consistency excludes journal and subjective fields, symptoms excludes unrelated journal/vital fields, and vitals excludes subjective fields. A free-text question or doctor summary can use all allowlisted fields in the selected period because the user-defined scope may require them.
 
 Medicine names, dose information, symptoms, vital readings, and notes are sensitive health information.
 
-PillMate does not send your name, email address, street address, GPS location, device identifier, contacts, photos, or entire local database by default. Do not put identifying information about yourself or another person in a free-text question or note that you choose to send.
+The AI health-data payload does not include your name, email address, street address, GPS location, device identifier, contacts, photos, or entire local database by default. A Sign in with Apple identity token and the one-time nonce used to obtain it are sent separately to PillMate's backend to authenticate an AI request. The backend verifies this credential and does not send it to OpenAI. An Apple identity token may contain Apple account claims such as a private account identifier and, when provided by Apple, an email address. Do not put identifying information about yourself or another person in a free-text question or note that you choose to send.
 
 ### Why the data is used
 
@@ -96,7 +98,7 @@ The localized screen must communicate all of the following before opt-in:
 
 1. “AI Assistant summarizes selected records; it does not diagnose or recommend treatment or medication changes.”
 2. “Your selected medicine details, dose records, symptoms, vital readings, notes, and question may be sent to PillMate's server and OpenAI.”
-3. “Only the selected date range is sent; identity, location, device ID, and the full local database are excluded by default.”
+3. “The health-data payload excludes your name, email, profile, location, device ID, and full local database. An Apple token and one-time nonce go only to PillMate's server for request authentication and are not sent to OpenAI.”
 4. “OpenAI does not train on API data by default, but content may be retained in abuse-monitoring logs for up to 30 days under the configured service terms.”
 5. “You can use local PillMate features without AI, withdraw consent at any time, and request deletion from AI Privacy controls.”
 6. “For a possible emergency, contact local emergency services; PillMate cannot contact them for you.”

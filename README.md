@@ -8,7 +8,7 @@ PillMate is a native SwiftUI medication companion for tracking doses, medication
 - **Records**: browse medication history by date and switch between Medication History and Health Journal.
 - **Health Journal**: save mood, symptoms, blood pressure, and heart-rate entries independently of a medication dose.
 - **Medicines**: manage active and past medicines, edit an existing medicine, restore an ended medicine, or permanently remove it.
-- **SwiftData persistence**: medicine definitions, medication records, and health journal entries are stored locally.
+- **SwiftData persistence**: medicine definitions, medication records, and health journal entries are stored locally with CloudKit disabled and the store excluded from device backups.
 - **Custom assets**: glass jar, yellow stars, mood and symptom characters, blood-pressure character, and heart artwork are included in the asset catalog.
 
 ## Requirements
@@ -45,9 +45,14 @@ PillMate/
 
 Ending a medicine marks it inactive and keeps its existing medication history. **Delete forever** removes the medicine definition, while previously saved medication records remain available in Records. Inactive or permanently deleted medicines are not included in active Today medication lists.
 
+Profile → **Privacy & data** can permanently delete all SwiftData records, app preferences, local profile/sign-in state, AI consent, and local reminders. The app then returns to onboarding with an empty local store.
+
 ## Development notes
 
-- The project currently contains seeded sample data so the main flows can be previewed quickly.
+- The production UI does not seed or display sample medicines, records, health readings, or summaries.
+- The frontend contains no fallback backend address. Set the generated Info.plist key `PILLMATE_API_BASE_URL` from build configuration; production accepts HTTPS only, while Debug also permits HTTP on `localhost` or `127.0.0.1`.
+- Sign in with Apple uses a cryptographic nonce. The identity token and raw nonce are kept in the device-only Keychain and attached only to authenticated backend requests; a `401` removes the stale credential and asks the user to sign in again.
+- Before testing a real Apple sign-in, enable **Sign in with Apple** for the PillMate target and App ID, then regenerate the provisioning profile. The capability is intentionally not committed yet.
 - The notification service is currently an abstraction point; local notification scheduling still needs to be connected to the platform notification APIs.
 - Future-date schedule generation is not yet a separate scheduling engine; Records displays saved records for the selected date.
 
