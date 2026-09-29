@@ -53,7 +53,7 @@ horizontally.
 The endpoint intentionally returns `503` until `OPENAI_API_KEY` is configured. Do not put a
 real key in source control.
 
-`OPENAI_MODEL` selects the Responses API model and defaults to `gpt-5-mini`. The backend uses
+`OPENAI_MODEL` selects the Responses API model and defaults to `gpt-5.6-terra`. The backend uses
 the official OpenAI Python SDK's Pydantic parsing helper so model output must match the
 structured assistant schema. Every request explicitly sets `store=False`; it does not attach a
 conversation or previous response ID, so calls do not use long-lived conversation state.
@@ -91,3 +91,19 @@ fixed application disclaimer.
 1. Add adversarial safety evaluations.
 2. Move rate-limit state to a shared atomic store when deploying multiple workers.
 3. Deploy behind HTTPS with Uvicorn's default access log disabled.
+
+## Production container
+
+The included `Dockerfile` runs the API as a non-root user with one Uvicorn worker and disables
+the access log. One worker is intentional while request metadata and rate limits remain in
+memory. Build and test it locally with:
+
+```bash
+docker build -t medistar-backend .
+docker run --rm -p 8000:8000 --env-file .env medistar-backend
+curl http://localhost:8000/health
+```
+
+For a hosted deployment, configure the variables from `.env.example` in the provider's secret
+settings. At minimum, production requires `OPENAI_API_KEY`, `APPLE_CLIENT_ID=misaki.MediStar`,
+and an HTTPS public URL. Never copy `.env` into the image or commit it to Git.
