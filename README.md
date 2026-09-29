@@ -123,7 +123,7 @@ The endpoint intentionally returns `503` when `OPENAI_API_KEY` is not configured
 ## Project structure
 
 ```text
-PillMate/
+MediStar/
 ├── MediStar/
 │   ├── App/             App entry point and SwiftData container
 │   ├── Models/          SwiftData entities and medication value types
