@@ -140,7 +140,9 @@ enum MedicationInventory {
         guard let takenAt = record.takenAt else { return record.recordDate }
 
         let formatter = DateFormatter()
+        formatter.calendar = calendar
         formatter.locale = locale
+        formatter.timeZone = calendar.timeZone
         formatter.dateStyle = .none
         formatter.timeStyle = .short
         guard let parsedTime = formatter.date(from: takenAt) else { return record.recordDate }

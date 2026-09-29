@@ -445,7 +445,7 @@ struct RecordsAnalysisService {
                         frequency: questionType.includesSchedule
                             ? Self.optionalLimited(medicine?.frequency, to: 80)
                             : nil,
-                        isActive: questionType.includesSchedule ? true : nil,
+                        isActive: questionType.includesSchedule ? (medicine?.isActive ?? true) : nil,
                         startDate: questionType.includesSchedule
                             ? dateFormatter.string(from: record.recordDate)
                             : nil,

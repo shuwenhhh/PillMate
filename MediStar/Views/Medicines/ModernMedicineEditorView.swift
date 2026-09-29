@@ -517,7 +517,9 @@ struct ModernMedicineEditorView: View {
         let cleanStrength = strength.trimmingCharacters(in: .whitespacesAndNewlines)
         let frequency = isAsNeeded ? "As needed" : Self.frequencyName(for: dosesPerDay)
         draft.frequency = frequency
-        draft.schedule = isAsNeeded ? "As needed" : doseTimes.prefix(dosesPerDay).map(Self.timeString).joined(separator: " · ")
+        draft.schedule = isAsNeeded
+            ? "As needed"
+            : doseTimes.prefix(dosesPerDay).map { Self.timeString($0) }.joined(separator: " · ")
         draft.dose = cleanStrength.isEmpty ? "1 tablet" : "\(cleanStrength) · 1 tablet \(Self.frequencyDescription(for: dosesPerDay, asNeeded: isAsNeeded))"
         onSave(draft)
         dismiss()

@@ -147,9 +147,9 @@ final class AppleAuthenticationStore {
     private let allowsLegacyMigration: Bool
     private let account = "apple-id-token-session"
 
-    init(service: String = "MediStar.AppleAuthentication", allowsLegacyMigration: Bool = true) {
+    init(service: String = "MediStar.AppleAuthentication", allowsLegacyMigration: Bool? = nil) {
         self.service = service
-        self.allowsLegacyMigration = allowsLegacyMigration
+        self.allowsLegacyMigration = allowsLegacyMigration ?? (service == "MediStar.AppleAuthentication")
     }
 
     func save(_ credentials: AppleRequestCredentials) throws {
