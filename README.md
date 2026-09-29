@@ -1,6 +1,6 @@
-# PillMate
+# MediStar
 
-PillMate is a native SwiftUI medication companion for tracking doses, medication supply, and day-to-day health notes. The interface uses a soft, card-based visual style with custom character artwork for medication and health states.
+MediStar is a native SwiftUI medication companion for tracking doses, medication supply, and day-to-day health notes. The interface uses a soft, card-based visual style with custom character artwork for medication and health states.
 
 ## What is included
 
@@ -18,11 +18,11 @@ PillMate is a native SwiftUI medication companion for tracking doses, medication
 
 ## Run locally
 
-1. Open `PillMate.xcodeproj` in Xcode.
-2. Select the **PillMate** scheme and an iOS Simulator (or a connected device).
+1. Open `MediStar.xcodeproj` in Xcode.
+2. Select the **MediStar** scheme and an iOS Simulator (or a connected device).
 3. Build and run with **⌘R**.
 
-The app creates its SwiftData `ModelContainer` in `PillMate/App/PillMateApp.swift` and registers these models:
+The app creates its SwiftData `ModelContainer` in `MediStar/App/MediStarApp.swift` and registers these models:
 
 - `MedicineEntity`
 - `MedicationRecordEntity`
@@ -31,7 +31,7 @@ The app creates its SwiftData `ModelContainer` in `PillMate/App/PillMateApp.swif
 ## Project structure
 
 ```text
-PillMate/
+MediStar/
 ├── App/             App entry point and SwiftData container
 ├── Models/          SwiftData entities and medication value types
 ├── ViewModels/      Feature-level state and presentation logic
@@ -50,9 +50,9 @@ Profile → **Privacy & data** can permanently delete all SwiftData records, app
 ## Development notes
 
 - The production UI does not seed or display sample medicines, records, health readings, or summaries.
-- The frontend contains no fallback backend address. Set the generated Info.plist key `PILLMATE_API_BASE_URL` from build configuration; production accepts HTTPS only, while Debug also permits HTTP on `localhost` or `127.0.0.1`.
+- The frontend contains no fallback backend address. Set the generated Info.plist key `MEDISTAR_API_BASE_URL` from build configuration; production accepts HTTPS only, while Debug also permits HTTP on `localhost` or `127.0.0.1`.
 - Sign in with Apple uses a cryptographic nonce. The identity token and raw nonce are kept in the device-only Keychain and attached only to authenticated backend requests; a `401` removes the stale credential and asks the user to sign in again.
-- Before testing a real Apple sign-in, enable **Sign in with Apple** for the PillMate target and App ID, then regenerate the provisioning profile. The capability is intentionally not committed yet.
+- Before testing a real Apple sign-in, enable **Sign in with Apple** for the MediStar target and App ID, then regenerate the provisioning profile. The capability is intentionally not committed yet.
 - The notification service is currently an abstraction point; local notification scheduling still needs to be connected to the platform notification APIs.
 - Future-date schedule generation is not yet a separate scheduling engine; Records displays saved records for the selected date.
 

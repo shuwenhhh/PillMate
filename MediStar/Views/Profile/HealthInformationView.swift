@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct HealthInformationView: View {
-    @AppStorage("pillmate.health.allergies") private var storedAllergies = ""
-    @AppStorage("pillmate.health.conditions") private var storedConditions = ""
-    @AppStorage("pillmate.health.age") private var age = ""
-    @AppStorage("pillmate.health.weightKilograms") private var weight = ""
-    @AppStorage("pillmate.health.bloodType") private var bloodType = ""
+    @AppStorage("medistar.health.allergies") private var storedAllergies = ""
+    @AppStorage("medistar.health.conditions") private var storedConditions = ""
+    @AppStorage("medistar.health.age") private var age = ""
+    @AppStorage("medistar.health.weightKilograms") private var weight = ""
+    @AppStorage("medistar.health.bloodType") private var bloodType = ""
 
     @State private var editor: HealthListEditor?
     @State private var isEditingDetails = false

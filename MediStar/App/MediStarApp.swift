@@ -7,6 +7,7 @@ struct MediStarApp: App {
 
     init() {
         do {
+            LocalDataStore.migrateLegacyPreferences()
             modelContainer = try LocalDataStore.makeModelContainer()
 #if DEBUG
             try LocalDataStore.seedTestDataIfRequested(in: modelContainer.mainContext)
@@ -25,12 +26,15 @@ struct MediStarApp: App {
 }
 
 private struct AppEntryView: View {
-    @AppStorage("pillmate.hasEnteredApp") private var hasEnteredApp = false
-    @AppStorage("pillmate.awaitingComfortPreferences") private var awaitingComfortPreferences = false
-    @AppStorage("pillmate.awaitingProfileSetup") private var awaitingProfileSetup = false
-    @AppStorage("pillmate.profileIsComplete") private var profileIsComplete = false
-    @AppStorage("pillmate.profileName") private var profileName = ""
-    @AppStorage("pillmate.profileEmail") private var profileEmail = ""
+    @Query private var medicineEntities: [MedicineEntity]
+    @AppStorage("medistar.hasEnteredApp") private var hasEnteredApp = false
+    @AppStorage("medistar.awaitingComfortPreferences") private var awaitingComfortPreferences = false
+    @AppStorage("medistar.awaitingProfileSetup") private var awaitingProfileSetup = false
+    @AppStorage("medistar.profileIsComplete") private var profileIsComplete = false
+    @AppStorage("medistar.profileName") private var profileName = ""
+    @AppStorage("medistar.profileEmail") private var profileEmail = ""
+    @AppStorage("medistar.shouldShowFirstMedicineGuide") private var shouldShowFirstMedicineGuide = false
+    @AppStorage("medistar.shouldOpenFirstMedicineEditor") private var shouldOpenFirstMedicineEditor = false
 
     var body: some View {
         Group {
@@ -41,8 +45,6 @@ private struct AppEntryView: View {
                     onSkip: {},
                     onComplete: {}
                 )
-            } else if isPreviewingHome || hasEnteredApp {
-                ContentView()
             } else if awaitingComfortPreferences {
                 ComfortPreferencesView(
                     onBack: {
@@ -63,6 +65,18 @@ private struct AppEntryView: View {
                     onSkip: completeOnboarding,
                     onComplete: completeOnboarding
                 )
+            } else if shouldShowFirstMedicineGuide && medicineEntities.isEmpty {
+                FirstMedicineGuideView(
+                    onAddMedicine: {
+                        shouldShowFirstMedicineGuide = false
+                        shouldOpenFirstMedicineEditor = true
+                    },
+                    onLater: {
+                        shouldShowFirstMedicineGuide = false
+                    }
+                )
+            } else if isPreviewingHome || hasEnteredApp {
+                ContentView()
             } else {
                 WelcomeView(
                     onContinueAsGuest: {
@@ -74,10 +88,19 @@ private struct AppEntryView: View {
                     onNewAppleUser: { name, email in
                         profileName = name
                         profileEmail = email
+                        shouldShowFirstMedicineGuide = true
                         awaitingComfortPreferences = true
                     }
                 )
             }
+        }
+        .task(id: medicineEntities.count) {
+            // A person returning to an existing local profile should never be
+            // routed through the first-medicine setup after an app update or
+            // a stale onboarding flag.
+            guard !medicineEntities.isEmpty else { return }
+            shouldShowFirstMedicineGuide = false
+            shouldOpenFirstMedicineEditor = false
         }
     }
 
@@ -90,7 +113,7 @@ private struct AppEntryView: View {
 
     private var isPreviewingOnboardingPage3: Bool {
 #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-pillmate.previewOnboardingPage3")
+        ProcessInfo.processInfo.arguments.contains("-medistar.previewOnboardingPage3")
 #else
         false
 #endif
@@ -98,7 +121,7 @@ private struct AppEntryView: View {
 
     private var isPreviewingHome: Bool {
 #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-pillmate.previewHome")
+        ProcessInfo.processInfo.arguments.contains("-medistar.previewHome")
 #else
         false
 #endif

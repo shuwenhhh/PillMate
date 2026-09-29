@@ -1,7 +1,7 @@
 import Foundation
 
 enum ReminderSoundChoice: String, CaseIterable {
-    static let storageKey = "pillmate.reminderSound"
+    static let storageKey = "medistar.reminderSound"
     static let defaultChoice: ReminderSoundChoice = .defaultSound
 
     case defaultSound = "Default"

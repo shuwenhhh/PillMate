@@ -1,1 +1,1 @@
-"""PillMate backend application package."""
+"""MediStar backend application package."""

@@ -1,4 +1,4 @@
-# PillMate AI Assistant: Privacy, Consent, and Deletion Draft
+# MediStar AI Assistant: Privacy, Consent, and Deletion Draft
 
 **Status:** Product and legal draft; not approved for production publication
 
@@ -6,7 +6,7 @@
 
 **Last updated:** 2026-09-15
 
-**Scope:** data processed specifically to provide the PillMate AI Assistant
+**Scope:** data processed specifically to provide the MediStar AI Assistant
 
 This draft defines implementation requirements and proposed user-facing language. It does not claim that unfinished controls already exist. Before launch, the operator must replace every bracketed placeholder, verify actual infrastructure and retention behavior, complete jurisdiction-specific legal review, and make the published notice match the shipped product.
 
@@ -14,11 +14,11 @@ This draft defines implementation requirements and proposed user-facing language
 
 ### What the AI Assistant does
 
-The AI Assistant summarizes the PillMate records you select. It can describe counts, dates, intervals, recorded co-occurrences, and text you entered. It does not diagnose conditions or recommend treatment or medication changes, and it is not an emergency service.
+The AI Assistant summarizes the MediStar records you select. It can describe counts, dates, intervals, recorded co-occurrences, and text you entered. It does not diagnose conditions or recommend treatment or medication changes, and it is not an emergency service.
 
 ### What is sent when you use it
 
-Only after you choose to run the AI Assistant, PillMate sends the minimum information needed for that request to PillMate's backend and its AI service provider. Depending on your selection, this may include:
+Only after you choose to run the AI Assistant, MediStar sends the minimum information needed for that request to MediStar's backend and its AI service provider. Depending on your selection, this may include:
 
 - the requested date range, time zone, language, question, request identifier, and consent version;
 - only medicines referenced by a selected medication event, with the medicine name and, when relevant to the question, its dose label, schedule window, or frequency;
@@ -29,32 +29,32 @@ Persistent local record identifiers are replaced with temporary, request-only id
 
 Medicine names, dose information, symptoms, vital readings, and notes are sensitive health information.
 
-The AI health-data payload does not include your name, email address, street address, GPS location, device identifier, contacts, photos, or entire local database by default. A Sign in with Apple identity token and the one-time nonce used to obtain it are sent separately to PillMate's backend to authenticate an AI request. The backend verifies this credential and does not send it to OpenAI. An Apple identity token may contain Apple account claims such as a private account identifier and, when provided by Apple, an email address. Do not put identifying information about yourself or another person in a free-text question or note that you choose to send.
+The AI health-data payload does not include your name, email address, street address, GPS location, device identifier, contacts, photos, or entire local database by default. A Sign in with Apple identity token and the one-time nonce used to obtain it are sent separately to MediStar's backend to authenticate an AI request. The backend verifies this credential and does not send it to OpenAI. An Apple identity token may contain Apple account claims such as a private account identifier and, when provided by Apple, an email address. Do not put identifying information about yourself or another person in a free-text question or note that you choose to send.
 
 ### Why the data is used
 
-The selected data is used only to validate the request, calculate factual record summaries, check the input and output for safety, generate the requested response, protect the service from abuse, and operate or troubleshoot the service using content-free technical logs. It is not used by PillMate for advertising or sale.
+The selected data is used only to validate the request, calculate factual record summaries, check the input and output for safety, generate the requested response, protect the service from abuse, and operate or troubleshoot the service using content-free technical logs. It is not used by MediStar for advertising or sale.
 
-PillMate must configure the API account not to opt in to model training. OpenAI states that API inputs and outputs are not used to train its models by default unless the organization explicitly opts in. See [OpenAI's data-use statement](https://openai.com/policies/how-your-data-is-used-to-improve-model-performance/).
+MediStar must configure the API account not to opt in to model training. OpenAI states that API inputs and outputs are not used to train its models by default unless the organization explicitly opts in. See [OpenAI's data-use statement](https://openai.com/policies/how-your-data-is-used-to-improve-model-performance/).
 
 ### Who processes the data
 
 The selected data is processed by:
 
-- **PillMate operator:** [legal entity and address], acting as the service operator/data controller where applicable;
-- **PillMate hosting provider:** [provider, processing region, and privacy link]; and
+- **MediStar operator:** [legal entity and address], acting as the service operator/data controller where applicable;
+- **MediStar hosting provider:** [provider, processing region, and privacy link]; and
 - **OpenAI:** the API provider used for safety moderation and response generation. See [OpenAI API data controls](https://developers.openai.com/api/docs/guides/your-data) and the applicable OpenAI business terms/data processing addendum.
 
-PillMate must not add another processor or move processing to a materially different region without updating the processor list and, where required, obtaining renewed consent.
+MediStar must not add another processor or move processing to a materially different region without updating the processor list and, where required, obtaining renewed consent.
 
 ### Retention
 
-The intended PillMate-side retention schedule is:
+The intended MediStar-side retention schedule is:
 
 | Data | Proposed retention rule |
 | --- | --- |
 | Health records stored locally in the app | Remain on the device until the user edits/deletes them or removes app data. Using or deleting AI Assistant data does not silently delete local health records. |
-| Raw AI request payload and generated response on PillMate servers | Process in memory for the request and do not persist to an application database, analytics system, or log. Clear transient copies when the request completes or fails. |
+| Raw AI request payload and generated response on MediStar servers | Process in memory for the request and do not persist to an application database, analytics system, or log. Clear transient copies when the request completes or fails. |
 | Cache, queue, or temporary file containing health content | Prohibited by default. If later required, it needs a new documented retention period, encryption, access control, and renewed consent before release. |
 | Operational log | Request ID, duration, status code, coarse safety outcome, and error type only; no question, note, medicine name, vital value, prompt, or model response. Delete within 30 days. |
 | Consent receipt | Account/pseudonymous user ID, notice version, decision, locale, and timestamp only. Keep while consent is active; after withdrawal or account deletion, delete from active systems within 30 days and encrypted backups within 90 days, unless a documented legal obligation requires a minimal record for longer. |
@@ -63,13 +63,13 @@ The OpenAI API request must set `store=false` and must not use conversations, th
 
 ### Your choices and rights
 
-You can use PillMate's local record features without consenting to the AI Assistant. You may withdraw AI consent or request deletion of AI-service data from the AI Privacy controls described below. Withdrawal stops new AI requests immediately and does not affect earlier lawful processing.
+You can use MediStar's local record features without consenting to the AI Assistant. You may withdraw AI consent or request deletion of AI-service data from the AI Privacy controls described below. Withdrawal stops new AI requests immediately and does not affect earlier lawful processing.
 
 Depending on where you live, you may also have rights to access, correct, export, restrict, object to, or complain about processing. Contact [privacy email] or [postal address]. Identity verification must request no more information than necessary.
 
 ### Safety and security
 
-PillMate uses data minimization, transport encryption, access controls, content-free operational logs, and separation of the mobile app from the API credential. No system can guarantee absolute security. Report privacy or security concerns to [security/privacy contact].
+MediStar uses data minimization, transport encryption, access controls, content-free operational logs, and separation of the mobile app from the API credential. No system can guarantee absolute security. Report privacy or security concerns to [security/privacy contact].
 
 ### Children and regulated use
 
@@ -97,11 +97,11 @@ Show a just-in-time consent screen immediately before the first AI request. Ask 
 The localized screen must communicate all of the following before opt-in:
 
 1. “AI Assistant summarizes selected records; it does not diagnose or recommend treatment or medication changes.”
-2. “Your selected medicine details, dose records, symptoms, vital readings, notes, and question may be sent to PillMate's server and OpenAI.”
-3. “The health-data payload excludes your name, email, profile, location, device ID, and full local database. An Apple token and one-time nonce go only to PillMate's server for request authentication and are not sent to OpenAI.”
+2. “Your selected medicine details, dose records, symptoms, vital readings, notes, and question may be sent to MediStar's server and OpenAI.”
+3. “The health-data payload excludes your name, email, profile, location, device ID, and full local database. An Apple token and one-time nonce go only to MediStar's server for request authentication and are not sent to OpenAI.”
 4. “OpenAI does not train on API data by default, but content may be retained in abuse-monitoring logs for up to 30 days under the configured service terms.”
-5. “You can use local PillMate features without AI, withdraw consent at any time, and request deletion from AI Privacy controls.”
-6. “For a possible emergency, contact local emergency services; PillMate cannot contact them for you.”
+5. “You can use local MediStar features without AI, withdraw consent at any time, and request deletion from AI Privacy controls.”
+6. “For a possible emergency, contact local emergency services; MediStar cannot contact them for you.”
 
 ### Consent receipt
 
@@ -120,7 +120,7 @@ Never store a health-record snapshot with the receipt. Every server request must
 The product must provide two separate controls so their effects are clear:
 
 1. **Turn off AI Assistant:** withdraws consent and blocks future transmissions immediately; it does not delete local records.
-2. **Delete my AI data:** deletes any PillMate-held AI content and operational linkage as described below; the user may separately choose whether to keep AI consent active for future requests.
+2. **Delete my AI data:** deletes any MediStar-held AI content and operational linkage as described below; the user may separately choose whether to keep AI consent active for future requests.
 
 Account deletion must include “Delete my AI data” and revoke AI consent.
 

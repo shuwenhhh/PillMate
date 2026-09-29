@@ -1,4 +1,4 @@
-# PillMate AI Assistant: Product and Safety Boundary
+# MediStar AI Assistant: Product and Safety Boundary
 
 **Status:** Batch 0 product requirement
 
@@ -6,11 +6,11 @@
 
 **Last updated:** 2026-09-14
 
-**Applies to:** the records-only AI Assistant, not the rest of the PillMate app
+**Applies to:** the records-only AI Assistant, not the rest of the MediStar app
 
 ## Product promise
 
-PillMate's AI Assistant helps a user inspect the health records they deliberately select. It is an informational record summarizer, not a clinician, diagnostic system, prescribing system, or emergency service.
+MediStar's AI Assistant helps a user inspect the health records they deliberately select. It is an informational record summarizer, not a clinician, diagnostic system, prescribing system, or emergency service.
 
 The assistant may describe only what is present in the selected records. It must keep recorded facts, user-authored statements, and generated prose distinguishable. A correlation or co-occurrence in the records must never be presented as a medical cause, treatment effect, or clinical interpretation.
 

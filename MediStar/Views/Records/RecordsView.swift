@@ -28,7 +28,7 @@ struct RecordsView: View {
     /// Keeping the completed version in app preferences prevents historical
     /// data work from running again whenever the Records tab is recreated.
     private enum LegacyMedicationHealthMigration {
-        static let storageKey = "pillmate.legacyMedicationHealthMigrationVersion"
+        static let storageKey = "medistar.legacyMedicationHealthMigrationVersion"
         static let currentVersion = 1
     }
 
@@ -152,18 +152,16 @@ struct RecordsView: View {
     }
 
     private var recordDates: Set<Date> {
-        var result = Set(
-            storedRecords
-                .filter { $0.takenAt != nil || $0.skippedAt != nil }
-                .map { Calendar.current.startOfDay(for: $0.recordDate) }
-        )
+        var dates = MedicationCompletion.fullyCompletedDates(records: storedRecords)
 
-        // Today's live dose state can change before SwiftData publishes.
-        // Keep its calendar marker visible during that short interval.
-        if !doses.isEmpty {
-            result.insert(today)
+        // Persisted history only contains doses the user interacted with, so it
+        // cannot tell whether another medicine is still Upcoming today. The live
+        // Today list contains every required dose and must override today's marker.
+        dates.remove(today)
+        if MedicationCompletion.isFullyCompletedToday(doses) {
+            dates.insert(today)
         }
-        return result
+        return dates
     }
 
     var body: some View {
@@ -285,7 +283,6 @@ struct RecordsView: View {
         let moodEntry = latestJournalEntry(of: .mood, in: entries)
         let pressureEntry = latestJournalEntry(of: .bloodPressure, in: entries)
         let heartRateEntry = latestJournalEntry(of: .heartRate, in: entries)
-        let symptomsEntry = latestJournalEntry(of: .symptoms, in: entries)
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -320,13 +317,7 @@ struct RecordsView: View {
                 )
             }
 
-            JournalSymptomsCard(
-                entry: symptomsEntry,
-                recordedAt: symptomsEntry.map { formattedJournalTime($0.recordedAt) } ?? "",
-                onEdit: { openJournalEntry(.symptoms) }
-            )
-
-            Text("Log how you feel, even without a medication entry.")
+            Text("Use Medication History to record symptoms after a specific dose.")
                 .font(.system(size: 14, weight: .regular, design: .rounded))
                 .foregroundStyle(RecordsPalette.mutedText)
                 .frame(maxWidth: .infinity)
@@ -505,6 +496,7 @@ struct RecordsView: View {
     ) -> some View {
         let status = timingStatus(for: record)
         let statusStyle = statusStyle(for: status)
+        let linkedSymptoms = linkedEntries.filter { $0.type == .symptoms }
 
         return HStack(alignment: .top, spacing: 11) {
             VStack(spacing: 0) {
@@ -570,11 +562,7 @@ struct RecordsView: View {
 
                 if record.isTaken {
                     Button {
-                        if linkedEntries.isEmpty {
-                            openJournalEntry(.mood, for: record)
-                        } else {
-                            selectedSection = .healthJournal
-                        }
+                        openJournalEntry(.symptoms, for: record)
                     } label: {
                         VStack(spacing: 0) {
                             Rectangle()
@@ -582,9 +570,9 @@ struct RecordsView: View {
                                 .frame(height: 1)
 
                             HStack(spacing: 6) {
-                                Image(systemName: linkedEntries.isEmpty ? "plus.circle" : "heart.text.square")
+                                Image(systemName: linkedSymptoms.isEmpty ? "plus.circle" : "stethoscope")
                                     .font(.system(size: 14, weight: .semibold))
-                                Text(linkedEntries.isEmpty ? "Add health entry" : journalSummary(linkedEntries))
+                                Text(linkedSymptoms.isEmpty ? "Add symptom" : symptomSummary(linkedSymptoms))
                                     .lineLimit(1)
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -688,20 +676,8 @@ struct RecordsView: View {
         }
     }
 
-    private func journalSummary(_ entries: [HealthJournalEntryEntity]) -> String {
-        let details = entries.compactMap { entry -> String? in
-            switch entry.type {
-            case .mood:
-                return entry.mood.map { "Feeling \($0.lowercased())" }
-            case .symptoms:
-                return entry.symptom
-            case .bloodPressure:
-                guard let systolic = entry.systolic, let diastolic = entry.diastolic else { return nil }
-                return "\(systolic)/\(diastolic) mmHg"
-            case .heartRate:
-                return entry.heartRate.map { "\($0) bpm" }
-            }
-        }
+    private func symptomSummary(_ entries: [HealthJournalEntryEntity]) -> String {
+        let details = entries.compactMap(\.symptom)
         return details.prefix(2).joined(separator: " · ")
     }
 
@@ -726,6 +702,29 @@ struct RecordsView: View {
 
     private func saveJournalEntry(_ draft: HealthJournalDraft) {
         let recordedAt = journalMedicationContext?.recordedAt ?? selectedDateWithCurrentTime()
+
+        // Symptoms belong to a specific medication event and may therefore be
+        // recorded more than once per day. Mood and vital signs are daily
+        // Health Journal check-ins: saving again updates that day's entry
+        // instead of creating a second card for the same measure.
+        if journalMedicationContext == nil,
+           let existingEntry = journalEntries.first(where: {
+               $0.type == draft.type &&
+               $0.medicationRecordID == nil &&
+               Calendar.current.isDate($0.entryDate, inSameDayAs: selectedDate)
+           }) {
+            existingEntry.recordedAt = recordedAt
+            existingEntry.mood = draft.mood
+            existingEntry.symptom = draft.symptom
+            existingEntry.severity = draft.severity
+            existingEntry.systolic = draft.systolic
+            existingEntry.diastolic = draft.diastolic
+            existingEntry.heartRate = draft.heartRate
+            existingEntry.note = draft.note
+            try? modelContext.save()
+            return
+        }
+
         let entry = HealthJournalEntryEntity(
             entryDate: selectedDate,
             recordedAt: recordedAt,

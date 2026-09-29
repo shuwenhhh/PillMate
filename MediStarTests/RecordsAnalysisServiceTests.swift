@@ -224,6 +224,7 @@ final class RecordsAnalysisServiceTests: XCTestCase {
 
         let events = try XCTUnwrap(json["medicationEvents"] as? [[String: Any]])
         XCTAssertEqual((events[0]["scheduledWindow"] as? String)?.count, 120)
+        XCTAssertEqual(events[0]["isCompleted"] as? Bool, true)
         XCTAssertEqual(events[0]["takenAt"] as? String, "9:00 AM")
         XCTAssertNil(events[0]["feeling"])
         XCTAssertNil(events[0]["interval"])
@@ -422,6 +423,85 @@ final class RecordsAnalysisServiceTests: XCTestCase {
         XCTAssertNil(sentMedications[0]["dose"])
         XCTAssertEqual(sentMedications[0]["timeWindow"] as? String, "8:00–10:00 AM")
         XCTAssertEqual(sentMedications[0]["frequency"] as? String, "Once a day")
+    }
+
+    func testConsistencyRequestIncludesScheduledMedicineWithNoCheckIn() async throws {
+        let session = makeSession()
+        let service = makeService(session: session, doseWindowHours: 2)
+        stubSuccessfulResponse()
+
+        let first = makeMedicine()
+        let missed = MedicineEntity(
+            name: "Second medicine",
+            dose: "5 mg",
+            schedule: "8:00 PM",
+            frequency: "Once a day",
+            originalQuantity: 30,
+            createdAt: makeDate(day: 1)
+        )
+
+        _ = try await service.analyze(
+            questionType: .consistency,
+            question: "On how many days did I take all scheduled medicines?",
+            days: 30,
+            consentVersion: AIAnalysisConsent.currentVersion,
+            medications: [first, missed],
+            medicationRecords: [makeMedicationRecord(notes: "")],
+            journalEntries: [],
+            now: makeDate(day: 14, hour: 12)
+        )
+
+        let body = try XCTUnwrap(URLProtocolStub.receivedBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let sentMedications = try XCTUnwrap(json["medications"] as? [[String: Any]])
+
+        XCTAssertEqual(sentMedications.count, 2)
+        XCTAssertEqual(Set(sentMedications.compactMap { $0["name"] as? String }), Set(["Example medicine", "Second medicine"]))
+        XCTAssertTrue(sentMedications.allSatisfy { $0["startDate"] as? String == "2026-09-01" })
+        XCTAssertTrue(sentMedications.allSatisfy { $0["isActive"] as? Bool == true })
+    }
+
+    func testDoctorSummaryDoesNotSendAFullScheduleAsAdherenceEvidence() async throws {
+        let service = makeService(session: makeSession(), doseWindowHours: 2)
+        stubSuccessfulResponse()
+
+        let recordedMedicine = makeMedicine()
+        recordedMedicine.schedule = "8:00 AM"
+        let unrecordedMedicine = MedicineEntity(
+            name: "Unrecorded medicine",
+            dose: "5 mg",
+            schedule: "8:00 PM",
+            frequency: "Once a day",
+            originalQuantity: 30,
+            createdAt: makeDate(day: 1)
+        )
+        let record = makeMedicationRecord(notes: "Felt tired")
+        record.timeWindow = "8:00 AM"
+
+        _ = try await service.analyze(
+            questionType: .doctorSummary,
+            question: "Create a summary for my doctor.",
+            days: 30,
+            consentVersion: AIAnalysisConsent.currentVersion,
+            medications: [recordedMedicine, unrecordedMedicine],
+            medicationRecords: [record],
+            journalEntries: [makeJournalEntry()],
+            now: makeDate(day: 14, hour: 12)
+        )
+
+        let body = try XCTUnwrap(URLProtocolStub.receivedBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let medications = try XCTUnwrap(json["medications"] as? [[String: Any]])
+        XCTAssertEqual(medications.count, 1)
+        XCTAssertEqual(medications[0]["name"] as? String, "Example medicine")
+        XCTAssertEqual(medications[0]["dose"] as? String, "10 mg")
+        XCTAssertNil(medications[0]["timeWindow"])
+        XCTAssertNil(medications[0]["frequency"])
+        XCTAssertNil(medications[0]["isActive"])
+
+        let events = try XCTUnwrap(json["medicationEvents"] as? [[String: Any]])
+        XCTAssertNil(events[0]["scheduledWindow"])
+        XCTAssertEqual(events[0]["feeling"] as? String, "Fine")
     }
 
     func testUnauthorizedResponseUsesLocalMessageAndCannotRetry() async {

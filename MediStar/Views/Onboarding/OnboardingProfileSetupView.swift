@@ -143,10 +143,9 @@ struct OnboardingProfileSetupView: View {
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(OnboardingPalette.indicator)
             }
-            Image("CalendarStar")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 20, height: 20)
+            Image(systemName: "star.fill")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(Color(red: 1.00, green: 0.76, blue: 0.16))
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Nickname, page 3 of 3")

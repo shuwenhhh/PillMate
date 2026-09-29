@@ -6,7 +6,6 @@ struct MedicationCalendarView: View {
     let onSelect: (Date) -> Void
 
     @State private var displayedMonth: Date
-    @GestureState private var dragOffset: CGFloat = 0
 
     private let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
@@ -31,37 +30,43 @@ struct MedicationCalendarView: View {
         Self.startOfMonth(containing: today)
     }
 
+    private var availableMonths: [Date] {
+        let earliestRecord = recordDates.min() ?? selectedDate
+        let earliestMonth = Self.startOfMonth(containing: min(earliestRecord, selectedDate))
+        var months: [Date] = []
+        var month = currentMonth
+        while month >= earliestMonth {
+            months.append(month)
+            guard let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: month) else {
+                break
+            }
+            month = previousMonth
+        }
+        return months
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 14) {
-                HStack {
-                    Image(systemName: "chevron.up")
-                    Text("Swipe up for earlier months · down to return")
-                    Image(systemName: "chevron.down")
+                Menu {
+                    Picker("Month", selection: $displayedMonth) {
+                        ForEach(availableMonths, id: \.self) { month in
+                            Text(month.formatted(.dateTime.month(.wide).year()))
+                                .tag(month)
+                        }
+                    }
+                } label: {
+                    Label("Choose month", systemImage: "calendar")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColors.accent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(AppColors.elevatedSurface, in: Capsule())
                 }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
 
                 monthView(displayedMonth)
                     .id(displayedMonth)
-                    .offset(y: dragOffset * 0.18)
-                    .opacity(1 - min(abs(dragOffset) / 500, 0.18))
-                    .gesture(
-                        DragGesture(minimumDistance: 20)
-                            .updating($dragOffset) { value, state, _ in
-                                state = value.translation.height
-                            }
-                            .onEnded { value in
-                                guard abs(value.translation.height) > 55 else { return }
-                                withAnimation(.easeInOut(duration: 0.24)) {
-                                    if value.translation.height < 0 {
-                                        moveDisplayedMonth(by: -1)
-                                    } else {
-                                        moveDisplayedMonth(by: 1)
-                                    }
-                                }
-                            }
-                    )
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
@@ -142,12 +147,6 @@ struct MedicationCalendarView: View {
 
     private func date(in month: Date, day: Int) -> Date {
         Calendar.current.date(bySetting: .day, value: day, of: month) ?? month
-    }
-
-    private func moveDisplayedMonth(by value: Int) {
-        guard let candidate = Calendar.current.date(byAdding: .month, value: value, to: displayedMonth),
-              candidate <= currentMonth else { return }
-        displayedMonth = candidate
     }
 
     private static func startOfMonth(containing date: Date) -> Date {

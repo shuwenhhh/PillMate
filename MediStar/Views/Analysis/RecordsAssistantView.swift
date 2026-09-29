@@ -6,15 +6,16 @@ struct RecordsAssistantView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(AIAnalysisConsent.storageKey) private var aiConsentVersion = ""
-    @AppStorage("pillmate.appleUserID") private var appleUserID = ""
-    @AppStorage("pillmate.profileName") private var profileName = ""
-    @AppStorage("pillmate.profileEmail") private var profileEmail = ""
-    @AppStorage("pillmate.profileIsComplete") private var profileIsComplete = false
+    @AppStorage("medistar.appleUserID") private var appleUserID = ""
+    @AppStorage("medistar.profileName") private var profileName = ""
+    @AppStorage("medistar.profileEmail") private var profileEmail = ""
+    @AppStorage("medistar.profileIsComplete") private var profileIsComplete = false
     @Query(sort: \MedicineEntity.createdAt) private var medications: [MedicineEntity]
 
     @State private var customQuestion = ""
     @State private var selectedAnalysisDays = 30
     @State private var analysisState: AnalysisState = .idle
+    @State private var conversation: [AnalysisExchange] = []
     @State private var lastAttempt: AnalysisAttempt?
     @State private var pendingConsentAttempt: AnalysisAttempt?
     @State private var analysisTask: Task<Void, Never>?
@@ -38,7 +39,7 @@ struct RecordsAssistantView: View {
             question: RecordsAssistantQuestion(
                 icon: "calendar.badge.checkmark",
                 title: "Check-in timing",
-                text: "How often were completed check-ins inside their schedule windows?",
+                text: "How many check-ins were on time, and on how many days did I take all scheduled medicines?",
                 background: Color(red: 0.88, green: 0.93, blue: 1.00)
             ),
             type: .consistency
@@ -46,8 +47,8 @@ struct RecordsAssistantView: View {
         AssistantPreset(
             question: RecordsAssistantQuestion(
                 icon: "heart.text.square",
-                title: "Heart & blood pressure",
-                text: "Which heart-rate or blood-pressure entries were recorded near medication check-ins?",
+                title: "After-dose vitals",
+                text: "What heart-rate and blood-pressure readings did I record after taking medication?",
                 background: Color(red: 0.87, green: 0.97, blue: 0.93)
             ),
             type: .vitals
@@ -65,32 +66,17 @@ struct RecordsAssistantView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 12) {
                 assistantHeader
                 analysisPeriod
                 recordsOnlyNotice
-                analysisStatusView
 
-                Text("Explore your records")
-                    .font(.system(size: 25, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppColors.text)
-                    .padding(.top, 4)
-
-                VStack(spacing: 0) {
-                    ForEach(Array(questions.enumerated()), id: \.element.question.id) { index, preset in
-                        questionRow(preset)
-                        if index < questions.count - 1 {
-                            Divider()
-                                .overlay(AppColors.accentMuted.opacity(0.36))
-                                .padding(.leading, 76)
-                        }
-                    }
+                if showsSuggestedQuestions {
+                    exampleQuestions
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                .padding(.vertical, 4)
-                .background(AppColors.elevatedSurface, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
-                .shadow(color: AppColors.cardShadow, radius: 14, y: 5)
-
-                askField
+                conversationHistory
+                analysisStatusView
 
                 Text("Each request uses only relevant records from the period you select.")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
@@ -98,10 +84,12 @@ struct RecordsAssistantView: View {
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
                     .padding(.top, 1)
+
+                askField
             }
             .padding(.horizontal, 20)
-            .padding(.top, 14)
-            .padding(.bottom, 32)
+            .padding(.top, 10)
+            .padding(.bottom, 16)
         }
         .background(AppColors.background.ignoresSafeArea())
         .sheet(isPresented: $isConsentSheetPresented, onDismiss: clearUnapprovedAttempt) {
@@ -140,15 +128,28 @@ struct RecordsAssistantView: View {
     }
 
     private var assistantHeader: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text("Ask MediStar AI")
-                .font(.system(size: 30, weight: .bold, design: .rounded))
-                .foregroundStyle(AppColors.text)
-            Text("Choose a period, then a question.")
-                .font(.system(size: 16, weight: .regular, design: .rounded))
-                .foregroundStyle(AppColors.secondaryText)
+        HStack(alignment: .center, spacing: 12) {
+            Image("HappyStar")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 58, height: 58)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading) {
+                Text("Hi, how have you been?")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppColors.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(AppColors.elevatedSurface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: AppColors.cardShadow, radius: 8, y: 3)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Hi, how have you been?")
     }
 
     private var analysisPeriod: some View {
@@ -161,7 +162,7 @@ struct RecordsAssistantView: View {
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(selectedAnalysisDays == days ? Color.white : AppColors.accentDeep)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 52)
+                        .frame(height: 44)
                         .background(
                             selectedAnalysisDays == days ? AppColors.accent : Color.clear,
                             in: Capsule()
@@ -180,11 +181,10 @@ struct RecordsAssistantView: View {
             Image(systemName: "shield")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(AppColors.secondaryText)
-            Text("AI summaries your records — not medical advice.")
-                .font(.system(size: 14, weight: .regular, design: .rounded))
+            Text("Informational summaries only — not a diagnosis or treatment recommendation.")
+                .font(.system(size: 13, weight: .regular, design: .rounded))
                 .foregroundStyle(AppColors.secondaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+                .lineLimit(2)
             Spacer(minLength: 0)
             Button("Learn more") {
                 isSafetyDetailsPresented = true
@@ -198,27 +198,45 @@ struct RecordsAssistantView: View {
         .accessibilityElement(children: .combine)
     }
 
+    private var exampleQuestions: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(questions.enumerated()), id: \.element.question.id) { index, preset in
+                questionRow(preset)
+                if index < questions.count - 1 {
+                    Divider()
+                        .overlay(AppColors.accentMuted.opacity(0.36))
+                        .padding(.leading, 76)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .background(AppColors.elevatedSurface, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
+        .shadow(color: AppColors.cardShadow, radius: 14, y: 5)
+    }
+
     @ViewBuilder
     private var analysisStatusView: some View {
         switch analysisState {
         case .idle:
             EmptyView()
         case .loading:
-            statusCard(icon: "sparkles") {
-                HStack(spacing: 12) {
-                    ProgressView()
-                        .tint(AppColors.accent)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Reviewing your records…")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppColors.text)
-                        Text("This can take a moment.")
-                            .font(.system(size: 14, design: .rounded))
-                            .foregroundStyle(AppColors.secondaryText)
-                    }
+            VStack(alignment: .leading, spacing: 12) {
+                if let question = lastAttempt?.question {
+                    askedQuestionBubble(question)
                 }
+
+                HStack(spacing: 11) {
+                    LoadingSparkles(reduceMotion: reduceMotion)
+                    Text("Reviewing your records…")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppColors.text)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .background(AppColors.elevatedSurface, in: Capsule())
+                .shadow(color: AppColors.cardShadow, radius: 8, y: 3)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Reviewing your records")
+                .accessibilityLabel("Reviewing your records. This can take a moment.")
             }
         case .empty:
             statusCard(icon: "tray") {
@@ -279,21 +297,53 @@ struct RecordsAssistantView: View {
         .shadow(color: AppColors.cardShadow, radius: 12, y: 4)
     }
 
+    private func askedQuestionBubble(_ question: String) -> some View {
+        HStack {
+            Spacer(minLength: 44)
+            Text(question)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(AppColors.accent, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+        }
+        .accessibilityLabel("Your question: \(question)")
+    }
+
     private func analysisResult(_ response: RecordsAnalysisResponse) -> some View {
-        VStack(alignment: .leading, spacing: 17) {
+        let hasDoctorTable = response.doctorSummaryTable != nil
+        let hasVitalsTable = !(response.afterDoseVitalsTable?.medicines.isEmpty ?? true)
+        let hasTimingTable = !(response.checkInTimingTable?.medicines.isEmpty ?? true)
+
+        return VStack(alignment: .leading, spacing: 17) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: resultIcon(for: response.status))
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(resultColor(for: response.status))
-                    .frame(width: 44, height: 44)
-                    .background(resultColor(for: response.status).opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
-                Text(response.summary)
+                resultIndicator(for: response.status)
+                Text(
+                    hasDoctorTable
+                        ? "Useful changes to share"
+                        : (hasVitalsTable
+                            ? "After-dose vitals"
+                            : (hasTimingTable ? "Check-in timing" : response.summary))
+                )
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppColors.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if !response.observations.isEmpty {
+            if let table = response.doctorSummaryTable {
+                doctorSummaryTable(table)
+            }
+
+            if hasVitalsTable, let table = response.afterDoseVitalsTable {
+                afterDoseVitalsTable(table)
+            }
+
+            if hasTimingTable, let table = response.checkInTimingTable {
+                checkInTimingTable(table)
+            }
+
+            if !hasDoctorTable, !hasVitalsTable, !hasTimingTable, !response.observations.isEmpty {
                 resultSection(title: "Recorded patterns") {
                     ForEach(Array(response.observations.enumerated()), id: \.offset) { _, observation in
                         Label {
@@ -308,40 +358,210 @@ struct RecordsAssistantView: View {
                 }
             }
 
-            if !response.followUpQuestions.isEmpty {
-                resultSection(title: "Follow-up questions") {
-                    ForEach(Array(response.followUpQuestions.enumerated()), id: \.offset) { _, question in
-                        Button {
-                            submit(question: question, type: .freeText)
-                        } label: {
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: "arrow.turn.down.right")
-                                    .foregroundStyle(AppColors.accent)
-                                Text(question)
-                                    .foregroundStyle(AppColors.text)
-                                    .multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Spacer(minLength: 0)
-                            }
-                        }
-                        .buttonStyle(AskPressButtonStyle(reduceMotion: reduceMotion))
-                    }
-                }
-            }
-
-            Divider()
-                .overlay(AppColors.accentMuted.opacity(0.5))
-
-            Label(response.disclaimer, systemImage: "info.circle")
-                .font(.system(size: 13, design: .rounded))
-                .foregroundStyle(AppColors.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(AppColors.elevatedSurface, in: RoundedRectangle(cornerRadius: 23, style: .continuous))
         .shadow(color: AppColors.cardShadow, radius: 14, y: 5)
         .accessibilityElement(children: .contain)
+    }
+
+    private func checkInTimingTable(_ table: CheckInTimingTable) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("All medicines taken")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppColors.secondaryText)
+                    Text("\(table.completeDays) of \(table.trackedDays) days")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppColors.text)
+                }
+                Spacer()
+                Image(systemName: "calendar.badge.checkmark")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(AppColors.accent)
+            }
+            .padding(.horizontal, 12)
+
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    Text("Medicine")
+                        .frame(width: 88, alignment: .leading)
+                    Text("Taken")
+                        .frame(width: 42, alignment: .trailing)
+                    Text("Timing")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(AppColors.secondaryText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+
+                ForEach(table.medicines) { medicine in
+                    Divider().overlay(AppColors.accentMuted.opacity(0.32))
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(medicine.medicine)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppColors.text)
+                            .frame(width: 88, alignment: .leading)
+                        Text("\(medicine.taken)")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppColors.text)
+                            .frame(width: 42, alignment: .trailing)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("On time \(medicine.onTime)")
+                            Text("Early \(medicine.early) · Late \(medicine.late)")
+                            if medicine.withoutTiming > 0 {
+                                Text("No time \(medicine.withoutTiming)")
+                            }
+                        }
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppColors.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                }
+            }
+            .background(AppColors.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(AppColors.accentMuted.opacity(0.28), lineWidth: 1)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func afterDoseVitalsTable(_ table: AfterDoseVitalsTable) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Text("Medicine")
+                    .frame(width: 82, alignment: .leading)
+                Text("Heart rate")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Blood pressure")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .foregroundStyle(AppColors.secondaryText)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+
+            ForEach(table.medicines) { medicine in
+                Divider().overlay(AppColors.accentMuted.opacity(0.32))
+                HStack(alignment: .top, spacing: 6) {
+                    Text(medicine.medicine)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppColors.text)
+                        .frame(width: 82, alignment: .leading)
+
+                    vitalTableCell(count: medicine.heartRateCount, range: medicine.heartRateRange)
+                    vitalTableCell(count: medicine.bloodPressureCount, range: medicine.bloodPressureRange)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+        }
+        .background(AppColors.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppColors.accentMuted.opacity(0.28), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func vitalTableCell(count: Int, range: String?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let range {
+                Text(range)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppColors.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(count) \(count == 1 ? "reading" : "readings")")
+                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                    .foregroundStyle(AppColors.secondaryText)
+            } else {
+                Text("—")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func doctorSummaryTable(_ table: DoctorSummaryTable) -> some View {
+        VStack(spacing: 0) {
+            if !table.medicines.isEmpty {
+                HStack {
+                    Text("Medicine")
+                    Spacer()
+                    Text("Recorded symptoms")
+                    Spacer()
+                    Text("Entries")
+                }
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(AppColors.secondaryText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+
+                ForEach(table.medicines) { medicine in
+                    Divider().overlay(AppColors.accentMuted.opacity(0.32))
+                    ForEach(Array(medicine.symptoms.enumerated()), id: \.element.id) { index, symptom in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(index == 0 ? medicine.medicine : "")
+                                .frame(width: 88, alignment: .leading)
+                            Text(symptom.label)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text("\(symptom.count)")
+                                .frame(width: 36, alignment: .trailing)
+                        }
+                        .font(.system(size: 14, weight: index == 0 ? .semibold : .regular, design: .rounded))
+                        .foregroundStyle(index == 0 ? AppColors.text : AppColors.secondaryText)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                    }
+                }
+            }
+
+            if table.heartRate != nil || table.bloodPressure != nil {
+                Divider().overlay(AppColors.accentMuted.opacity(0.32))
+                VStack(spacing: 0) {
+                    if let heartRate = table.heartRate {
+                        vitalRow(title: "Heart rate", value: heartRate.range, latest: heartRate.latest)
+                    }
+                    if let bloodPressure = table.bloodPressure {
+                        if table.heartRate != nil { Divider().overlay(AppColors.accentMuted.opacity(0.24)) }
+                        vitalRow(title: "Blood pressure", value: bloodPressure.range, latest: bloodPressure.latest)
+                    }
+                }
+            }
+        }
+        .background(AppColors.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppColors.accentMuted.opacity(0.28), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func vitalRow(title: String, value: String, latest: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppColors.text)
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(value)
+                Text("Latest: \(latest)")
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+            .font(.system(size: 13, weight: .medium, design: .rounded))
+            .foregroundStyle(AppColors.text)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 
     private func resultSection<Content: View>(
@@ -399,7 +619,7 @@ struct RecordsAssistantView: View {
 
     private var askField: some View {
         HStack(spacing: 10) {
-            TextField("Or ask your own question…", text: $customQuestion)
+            TextField("Tell me how you’ve been…", text: $customQuestion)
                 .font(.system(size: 17, weight: .regular, design: .rounded))
                 .foregroundStyle(AppColors.text)
                 .textInputAutocapitalization(.sentences)
@@ -417,7 +637,7 @@ struct RecordsAssistantView: View {
             .buttonStyle(AskPressButtonStyle(reduceMotion: reduceMotion))
             .disabled(isLoading || trimmedCustomQuestion.isEmpty)
             .opacity(isLoading || trimmedCustomQuestion.isEmpty ? 0.45 : 1)
-            .accessibilityLabel("Ask question")
+            .accessibilityLabel("Send message to MediStar")
         }
         .padding(.leading, 17)
         .padding(.trailing, 8)
@@ -437,8 +657,58 @@ struct RecordsAssistantView: View {
         return false
     }
 
+    private var showsSuggestedQuestions: Bool {
+        guard conversation.isEmpty else { return false }
+        switch analysisState {
+        case .loading, .loaded:
+            return false
+        case .idle, .empty, .failure:
+            return true
+        }
+    }
+
+    @ViewBuilder
+    private var conversationHistory: some View {
+        ForEach(conversation) { exchange in
+            VStack(alignment: .leading, spacing: 10) {
+                askedQuestionBubble(exchange.question)
+                analysisResult(exchange.response)
+            }
+        }
+    }
+
     private func submitCustomQuestion() {
-        submit(question: trimmedCustomQuestion, type: .freeText)
+        submit(question: trimmedCustomQuestion, type: inferredQuestionType(for: trimmedCustomQuestion))
+    }
+
+    private func inferredQuestionType(for question: String) -> RecordsAnalysisQuestionType {
+        let normalized = question
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let preset = questions.first(where: {
+            $0.question.text.folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: .current
+            ) == normalized
+        }) {
+            return preset.type
+        }
+
+        let asksAboutHeartRate = normalized.contains("heart rate") || normalized.contains("heart-rate")
+        let asksAboutBloodPressure = normalized.contains("blood pressure") || normalized.contains("blood-pressure")
+        if normalized.contains("vital") || asksAboutHeartRate || asksAboutBloodPressure {
+            return .vitals
+        }
+        if normalized.contains("check-in")
+            || normalized.contains("check in")
+            || normalized.contains("on time")
+            || normalized.contains("taken late")
+            || normalized.contains("taken early")
+            || normalized.contains("forgot") {
+            return .consistency
+        }
+        return .freeText
     }
 
     private func submit(question: String, type: RecordsAnalysisQuestionType) {
@@ -489,7 +759,12 @@ struct RecordsAssistantView: View {
                     journalEntries: records.journalEntries
                 )
                 guard !Task.isCancelled else { return }
-                analysisState = .loaded(response)
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    conversation.append(
+                        AnalysisExchange(question: attempt.question, response: response)
+                    )
+                    analysisState = .idle
+                }
             } catch is CancellationError {
                 return
             } catch RecordsAnalysisError.noRecords {
@@ -601,10 +876,27 @@ struct RecordsAssistantView: View {
 
     private func resultIcon(for status: RecordsAnalysisStatus) -> String {
         switch status {
-        case .ok: return "checkmark.circle.fill"
+        case .ok: return "star.fill"
         case .needsClarification: return "questionmark.circle.fill"
         case .refusal: return "shield.fill"
         case .safetyEscalation: return "cross.case.fill"
+        }
+    }
+
+    @ViewBuilder
+    private func resultIndicator(for status: RecordsAnalysisStatus) -> some View {
+        switch status {
+        case .ok:
+            AssistantResultStar()
+        case .needsClarification, .refusal, .safetyEscalation:
+            Image(systemName: resultIcon(for: status))
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(resultColor(for: status))
+                .frame(width: 44, height: 44)
+                .background(
+                    resultColor(for: status).opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 14)
+                )
         }
     }
 
@@ -615,6 +907,33 @@ struct RecordsAssistantView: View {
         case .refusal: return Color(red: 0.72, green: 0.47, blue: 0.10)
         case .safetyEscalation: return Color(red: 0.78, green: 0.22, blue: 0.22)
         }
+    }
+}
+
+private struct AssistantResultStar: View {
+    private let gold = Color(red: 1.00, green: 0.76, blue: 0.16)
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(gold.opacity(0.13))
+
+            Star(size: 35, style: .yellow)
+
+            Image(systemName: "sparkle")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(gold)
+                .offset(x: 15, y: -14)
+
+            Image(systemName: "sparkle")
+                .font(.system(size: 6, weight: .bold))
+                .foregroundStyle(gold.opacity(0.9))
+                .offset(x: -16, y: 13)
+        }
+        .frame(width: 44, height: 44)
+        .shadow(color: gold.opacity(0.2), radius: 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("MediStar AI answer")
     }
 }
 
@@ -803,6 +1122,12 @@ private struct AnalysisAttempt {
     let days: Int
 }
 
+private struct AnalysisExchange: Identifiable {
+    let id = UUID()
+    let question: String
+    let response: RecordsAnalysisResponse
+}
+
 private struct AnalysisRecords {
     let medicationRecords: [MedicationRecordEntity]
     let journalEntries: [HealthJournalEntryEntity]
@@ -814,6 +1139,49 @@ private enum AnalysisState {
     case empty
     case loaded(RecordsAnalysisResponse)
     case failure(RecordsAnalysisError)
+}
+
+/// A compact, warm loading cue for the assistant. It deliberately stays local
+/// to this state so the purple product palette remains the dominant theme.
+private struct LoadingSparkles: View {
+    let reduceMotion: Bool
+
+    @State private var isTwinkling = false
+
+    private let gold = Color(red: 0.91, green: 0.63, blue: 0.16)
+    private let softGold = Color(red: 1.00, green: 0.82, blue: 0.36)
+
+    var body: some View {
+        ZStack {
+            sparkle(size: 17, offset: CGSize(width: 0, height: -3), delay: 0)
+            sparkle(size: 10, offset: CGSize(width: 10, height: 6), delay: 0.18)
+            sparkle(size: 8, offset: CGSize(width: -9, height: 8), delay: 0.36)
+        }
+        .frame(width: 29, height: 28)
+        .accessibilityHidden(true)
+        .onAppear {
+            guard !reduceMotion else { return }
+            isTwinkling = true
+        }
+        .onChange(of: reduceMotion) { _, shouldReduceMotion in
+            isTwinkling = !shouldReduceMotion
+        }
+    }
+
+    private func sparkle(size: CGFloat, offset: CGSize, delay: Double) -> some View {
+        Image(systemName: "sparkle")
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(size == 17 ? gold : softGold)
+            .offset(offset)
+            .scaleEffect(isTwinkling ? 1 : 0.58)
+            .opacity(isTwinkling ? 1 : 0.42)
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.78)
+                    .repeatForever(autoreverses: true)
+                    .delay(delay),
+                value: isTwinkling
+            )
+    }
 }
 
 private struct AskPressButtonStyle: ButtonStyle {

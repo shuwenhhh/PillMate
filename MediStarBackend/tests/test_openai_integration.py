@@ -95,6 +95,23 @@ def test_settings_reads_openai_model_from_environment(monkeypatch: pytest.Monkey
     assert configured.openai_model == "model-from-environment"
 
 
+def test_default_generation_budget_favors_short_reliable_summaries() -> None:
+    configured = Settings(_env_file=None)
+
+    assert configured.openai_reasoning_effort == "none"
+    assert configured.openai_max_output_tokens == 320
+    assert configured.openai_max_retries == 1
+
+
+def test_legacy_mini_model_does_not_receive_unsupported_none_reasoning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "openai_model", "gpt-5-mini")
+    monkeypatch.setattr(settings, "openai_reasoning_effort", "none")
+
+    assert AssistantService._reasoning_effort() == "minimal"
+
+
 def test_endpoint_without_api_key_returns_503_before_creating_client(
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
@@ -120,7 +137,9 @@ def test_configured_endpoint_returns_structured_assistant_response_without_state
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
 ) -> None:
-    request = AssistantRequest.model_validate(assistant_payload())
+    payload = assistant_payload()
+    payload["questionType"] = "free_text"
+    request = AssistantRequest.model_validate(payload)
     evidence_id = summarize_records(request).evidence[0].id
     client = RecordingOpenAIClient(evidence_id)
     service = AssistantService(client=client)
@@ -133,24 +152,32 @@ def test_configured_endpoint_returns_structured_assistant_response_without_state
 
     response = TestClient(app).post(
         "/v1/assistant/analyze",
-        json=assistant_payload(),
+        json=payload,
         headers=auth_headers,
     )
 
     assert response.status_code == 200
     parsed_response = AssistantResponse.model_validate(response.json())
     assert parsed_response.status == "ok"
-    assert parsed_response.observations[0].evidence_ids == [evidence_id]
+    assert parsed_response.observations == []
+    assert parsed_response.evidence[0].id == evidence_id
     assert server_only_key not in response.text
 
     call = client.responses.parse_kwargs
     assert call is not None
     assert call["model"] == configured_model
     assert call["text_format"] is OpenAIAssistantOutput
+    assert call["reasoning"] == {"effort": service._reasoning_effort()}
+    assert call["max_output_tokens"] == settings.openai_max_output_tokens
     assert call["store"] is False
     assert "conversation" not in call
     assert "previous_response_id" not in call
     assert server_only_key not in call["input"]
+    model_input = json.loads(call["input"])
+    assert model_input["recordFacts"]["medications"][0]["medicine"] == "Example medicine"
+    assert model_input["recordFacts"]["medications"][0]["completedCheckIns"] == 1
+    assert "selectedRecords" not in model_input
+    assert "deterministicSummary" not in model_input
 
 
 def test_service_returns_pydantic_validated_structured_output() -> None:
@@ -163,9 +190,17 @@ def test_service_returns_pydantic_validated_structured_output() -> None:
     result = asyncio.run(service.generate(request))
 
     assert isinstance(result, AssistantResponse)
-    assert result.model_dump(mode="json", by_alias=True)["observations"][0]["evidenceIds"] == [
-        evidence_id
-    ]
+    assert result.summary == "One medication event was recorded."
+    assert result.observations == []
+    assert result.evidence[0].id == evidence_id
+
+
+def test_service_removes_a_model_repeated_disclaimer_from_the_summary() -> None:
+    summary = AssistantService._without_embedded_disclaimer(
+        "A concise summary. This is an informational summary of your records, not a diagnosis or treatment recommendation."
+    )
+
+    assert summary == "A concise summary"
 
 
 def test_openai_schema_uses_only_supported_structured_output_constraints() -> None:
@@ -191,3 +226,4 @@ def test_openai_schema_uses_only_supported_structured_output_constraints() -> No
         return set()
 
     assert collect_keys(schema).isdisjoint(unsupported_keywords)
+    assert set(schema["properties"]) == {"summary"}

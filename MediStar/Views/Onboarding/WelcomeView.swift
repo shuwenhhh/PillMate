@@ -5,8 +5,8 @@ struct WelcomeView: View {
     let onExistingAppleUser: () -> Void
     let onNewAppleUser: (_ name: String, _ email: String) -> Void
 
-    @AppStorage("pillmate.appleUserID") private var savedAppleUserID = ""
-    @AppStorage("pillmate.profileIsComplete") private var profileIsComplete = false
+    @AppStorage("medistar.appleUserID") private var savedAppleUserID = ""
+    @AppStorage("medistar.profileIsComplete") private var profileIsComplete = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -93,8 +93,8 @@ struct WelcomeView: View {
                 .foregroundStyle(OnboardingPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Gentle reminders. Small steps.\nA healthier you.")
-                .font(.system(size: 20, weight: .medium, design: .rounded))
+            Text("Gentle reminders. A simple record for your doctor.")
+                .font(.system(size: 19, weight: .medium, design: .rounded))
                 .foregroundStyle(OnboardingPalette.muted)
                 .lineSpacing(3)
         }
@@ -103,10 +103,9 @@ struct WelcomeView: View {
 
     private var pageIndicator: some View {
         HStack(spacing: 15) {
-            Image("CalendarStar")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 20, height: 20)
+            Image(systemName: "star.fill")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(Color(red: 1.00, green: 0.76, blue: 0.16))
             Image(systemName: "star")
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(OnboardingPalette.indicator)

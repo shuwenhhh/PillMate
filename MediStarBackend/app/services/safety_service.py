@@ -7,7 +7,11 @@ from ..config import settings
 
 class SafetyService:
     def __init__(self, client: AsyncOpenAI | None = None):
-        self.client = client or AsyncOpenAI(api_key=settings.openai_api_key)
+        self.client = client or AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            timeout=settings.openai_request_timeout_seconds,
+            max_retries=settings.openai_max_retries,
+        )
 
     async def is_flagged(self, text: str) -> bool:
         result = await self.client.moderations.create(

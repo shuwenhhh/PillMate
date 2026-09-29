@@ -2,10 +2,16 @@ import SwiftUI
 
 /// A calm, full-screen reward shown only after every medicine for today is done.
 struct DoseCelebrationView: View {
+    let streakDays: Int
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isVisible = false
+
+    private var streakTitle: String {
+        let dayLabel = streakDays == 1 ? "day" : "days"
+        return "You've cared for yourself \(streakDays) \(dayLabel) in a row."
+    }
 
     var body: some View {
         ZStack {
@@ -26,7 +32,7 @@ struct DoseCelebrationView: View {
                     .scaleEffect(isVisible ? 1 : 0.72)
                     .opacity(isVisible ? 1 : 0)
 
-                Text("You took good care of yourself today")
+                Text(streakTitle)
                     .font(.system(size: 25, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white)

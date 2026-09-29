@@ -59,4 +59,16 @@ final class DoseTimeWindowTests: XCTestCase {
             .late
         )
     }
+
+    func testScheduledMinutesAreSharedAcrossSingleTimesAndRanges() {
+        XCTAssertEqual(
+            DoseTimeWindow.scheduledMinutes(in: "8:00 AM · 8:00 PM"),
+            [8 * 60, 20 * 60]
+        )
+        XCTAssertEqual(
+            DoseTimeWindow.scheduledMinutes(in: "8:00–10:00 AM"),
+            [8 * 60]
+        )
+        XCTAssertEqual(DoseTimeWindow.scheduledMinutes(in: "As needed"), [])
+    }
 }

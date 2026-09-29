@@ -6,9 +6,12 @@ struct ContentView: View {
     /// Today only needs today's records for rendering and dose updates. Stock
     /// history is fetched separately at the moment it is needed.
     @Query private var storedRecords: [MedicationRecordEntity]
+    @Query(sort: \MedicationRecordEntity.recordDate, order: .reverse)
+    private var medicationHistory: [MedicationRecordEntity]
     @Query(sort: \MedicineEntity.createdAt) private var storedMedicines: [MedicineEntity]
-    @AppStorage("pillmate.profileName") private var profileName = ""
-    @AppStorage("pillmate.notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("medistar.profileName") private var profileName = ""
+    @AppStorage("medistar.notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("medistar.shouldOpenFirstMedicineEditor") private var shouldOpenFirstMedicineEditor = false
     @AppStorage(ReminderSoundChoice.storageKey) private var reminderSound = ReminderSoundChoice.defaultChoice.rawValue
     @AppStorage(DoseTimeWindow.storageKey) private var doseWindowHours = DoseTimeWindow.defaultHours
 
@@ -35,6 +38,31 @@ struct ContentView: View {
 
     private var completedStarStyles: [MedicationStarStyle] {
         doses.filter { $0.isTaken && !$0.isSkipped }.map(\.starStyle)
+    }
+
+    /// A streak follows the same rule as the illuminated day stars in Records.
+    private var completedCareStreak: Int {
+        var completedDates = MedicationCompletion.fullyCompletedDates(
+            records: medicationHistory
+        )
+        completedDates.remove(today)
+        if MedicationCompletion.isFullyCompletedToday(doses) {
+            completedDates.insert(today)
+        }
+        var streak = 0
+        var day = today
+
+        while true {
+            guard completedDates.contains(day) else {
+                return streak
+            }
+
+            streak += 1
+            guard let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: day) else {
+                return streak
+            }
+            day = previousDay
+        }
     }
 
     /// Skipped medicines are resolved for today, but they are not doses taken
@@ -79,7 +107,7 @@ struct ContentView: View {
             }
 
             if showDoseCelebration {
-                DoseCelebrationView {
+                DoseCelebrationView(streakDays: completedCareStreak) {
                     withAnimation(.easeOut(duration: 0.22)) {
                         showDoseCelebration = false
                     }
@@ -111,10 +139,15 @@ struct ContentView: View {
             }
         }
         .onAppear {
-#if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-pillmate.previewAddMedicine") {
+            if shouldOpenFirstMedicineEditor && storedMedicines.isEmpty {
                 selectedTab = 3
-            } else if ProcessInfo.processInfo.arguments.contains("-pillmate.previewProfile") {
+            } else if !storedMedicines.isEmpty {
+                shouldOpenFirstMedicineEditor = false
+            }
+#if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-medistar.previewAddMedicine") {
+                selectedTab = 3
+            } else if ProcessInfo.processInfo.arguments.contains("-medistar.previewProfile") {
                 selectedTab = 4
             }
 #endif
@@ -155,9 +188,6 @@ struct ContentView: View {
                 .foregroundStyle(AppColors.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.70)
-            Text("Your health, on track.")
-                .font(.system(size: 17, weight: .medium, design: .rounded))
-                .foregroundStyle(AppColors.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -171,7 +201,7 @@ struct ContentView: View {
     private var displayedProfileName: String {
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        if let flagIndex = arguments.firstIndex(of: "-pillmate.previewProfileName"),
+        if let flagIndex = arguments.firstIndex(of: "-medistar.previewProfileName"),
            arguments.indices.contains(flagIndex + 1) {
             return arguments[flagIndex + 1]
         }
@@ -422,7 +452,9 @@ struct ContentView: View {
         // medication schedule. Newly added medicines used to be appended,
         // which put an 8:00 AM dose after the existing evening doses.
         let scheduledMinutesByDoseID = Dictionary(
-            uniqueKeysWithValues: doses.map { ($0.id, scheduledMinutes(for: $0.timeWindow)) }
+            uniqueKeysWithValues: doses.map {
+                ($0.id, DoseTimeWindow.scheduledMinutes(in: $0.timeWindow).first ?? .max)
+            }
         )
         doses.sort { lhs, rhs in
             let lhsMinutes = scheduledMinutesByDoseID[lhs.id] ?? .max
@@ -434,32 +466,6 @@ struct ContentView: View {
 
     private func normalizedMedicineName(_ name: String) -> String {
         name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-    }
-
-    /// Returns the start of a medication's time window as minutes after
-    /// midnight. Single times such as "8:00 AM" are supported as well as
-    /// ranges such as "8:00–10:00 AM". Non-timed medicines stay at the end.
-    private func scheduledMinutes(for value: String) -> Int {
-        let parts = value
-            .replacingOccurrences(of: "–", with: "-")
-            .components(separatedBy: "-")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        guard let first = parts.first else { return Int.max }
-        let end = parts.count > 1 ? parts[1] : first
-        let suffix = end.uppercased().contains("AM") ? "AM" : "PM"
-        let start = first.uppercased().contains("AM") || first.uppercased().contains("PM")
-            ? first
-            : "\(first) \(suffix)"
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "h:mm a"
-        guard let date = formatter.date(from: start) else { return Int.max }
-        let components = Calendar(identifier: .gregorian).dateComponents([.hour, .minute], from: date)
-        guard let hour = components.hour, let minute = components.minute else { return Int.max }
-        return hour * 60 + minute
     }
 
     private func tint(for medicineID: UUID) -> Color {
@@ -481,7 +487,10 @@ struct ContentView: View {
             Calendar.current.isDate($0.recordDate, inSameDayAs: today)
         })
         let wasAlreadyTaken = existingEntity?.takenAt != nil
-        let completedDosesBeforeChange = completedDoseCount(for: dose.name)
+        let activeMedicine = storedMedicines.first(where: {
+            $0.isActive && $0.name.caseInsensitiveCompare(dose.name) == .orderedSame
+        })
+        let completedDosesBeforeChange = activeMedicine.map { completedDoseCount(for: $0) } ?? 0
 
         // Undoing a taken or skipped state should not leave a blank historical
         // event behind. Preserve the entity when it contains a health check-in.
@@ -520,9 +529,7 @@ struct ContentView: View {
 
         if dose.isTaken,
            !wasAlreadyTaken,
-           let medicine = storedMedicines.first(where: {
-               $0.isActive && $0.name.caseInsensitiveCompare(dose.name) == .orderedSame
-           })?.profile {
+           let medicine = activeMedicine?.profile {
             let remainingTablets = max(0, medicine.originalQuantity - completedDosesBeforeChange - 1)
             if notificationsEnabled {
                 Task {
@@ -547,13 +554,15 @@ struct ContentView: View {
 
     /// This is intentionally a targeted store query instead of keeping every
     /// historical record alive in the Today view solely for a stock estimate.
-    private func completedDoseCount(for medicineName: String) -> Int {
+    private func completedDoseCount(for medicine: MedicineEntity) -> Int {
+        let medicineName = medicine.name
         let descriptor = FetchDescriptor<MedicationRecordEntity>(
             predicate: #Predicate { record in
                 record.medicineName == medicineName && record.takenAt != nil
             }
         )
-        return (try? modelContext.fetchCount(descriptor)) ?? 0
+        let records = (try? modelContext.fetch(descriptor)) ?? []
+        return MedicationInventory.completedDoseCount(for: medicine, in: records)
     }
 
     /// Stop a medicine everywhere it can create a future dose. Existing
@@ -587,7 +596,7 @@ struct ContentView: View {
         HStack {
             navigationButton(title: "Today", icon: "house.fill", index: 0)
             navigationButton(title: "Records", icon: "clock.arrow.circlepath", index: 1)
-            navigationButton(title: "Ask AI", icon: "sparkles", index: 2)
+            navigationButton(title: "MediStar", icon: "sparkles", index: 2)
             navigationButton(title: "Medicines", icon: "pills", index: 3)
             navigationButton(title: "Profile", icon: "person", index: 4)
         }

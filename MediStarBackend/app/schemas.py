@@ -44,6 +44,14 @@ class MedicationDefinition(StrictModel):
     time_window: str = Field(default="", max_length=120)
     frequency: str = Field(default="", max_length=80)
     is_active: bool = True
+    start_date: date | None = None
+    end_date: date | None = None
+
+    @model_validator(mode="after")
+    def end_date_must_not_precede_start_date(self) -> Self:
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("medication end date must not precede start date")
+        return self
 
 
 class MedicationEvent(StrictModel):
@@ -51,6 +59,9 @@ class MedicationEvent(StrictModel):
     medicine_id: str = Field(min_length=1, max_length=64)
     recorded_at: datetime
     scheduled_window: str = Field(default="", max_length=120)
+    # Older app versions omitted this field; their completed records are
+    # inferred from takenAt for backwards compatibility.
+    is_completed: bool | None = None
     taken_at: str | None = Field(default=None, max_length=80)
     feeling: str | None = Field(default=None, max_length=80)
     interval: str = Field(default="", max_length=80)
@@ -68,6 +79,7 @@ class JournalEntry(StrictModel):
     severity: str | None = Field(default=None, max_length=40)
     heart_rate: int | None = Field(default=None, strict=True, ge=20, le=300)
     blood_pressure: BloodPressure | None = None
+    medication_event_id: str | None = Field(default=None, max_length=64)
 
 
 class QuestionType(str, Enum):
@@ -156,13 +168,60 @@ class OpenAIObservation(StrictModel):
 
 
 class OpenAIAssistantOutput(StrictModel):
-    """Pydantic schema sent to the OpenAI Responses API."""
+    """Minimal model contract: prose only; safety and UI fields stay server-owned."""
 
-    status: Literal["ok", "needs_clarification", "refusal", "safety_escalation"]
+    # Ignore legacy fixture fields while the API schema intentionally remains
+    # summary-only. The Responses SDK receives only this declared field.
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
     summary: str
-    observations: list[OpenAIObservation]
-    follow_up_questions: list[str]
-    disclaimer: str
+
+
+class DoctorSummarySymptom(StrictModel):
+    label: str = Field(min_length=1, max_length=120)
+    count: int = strict_int_field(minimum=1, maximum=500)
+
+
+class DoctorSummaryMedicineRow(StrictModel):
+    medicine: str = Field(min_length=1, max_length=120)
+    symptoms: list[DoctorSummarySymptom] = Field(default_factory=list, max_length=6)
+
+
+class DoctorSummaryVital(StrictModel):
+    range: str = Field(min_length=1, max_length=80)
+    latest: str = Field(min_length=1, max_length=40)
+
+
+class DoctorSummaryTable(StrictModel):
+    medicines: list[DoctorSummaryMedicineRow] = Field(default_factory=list, max_length=20)
+    heart_rate: DoctorSummaryVital | None = None
+    blood_pressure: DoctorSummaryVital | None = None
+
+
+class AfterDoseVitalsMedicineRow(StrictModel):
+    medicine: str = Field(min_length=1, max_length=120)
+    heart_rate_count: int = strict_int_field(minimum=0, maximum=500)
+    heart_rate_range: str | None = Field(default=None, min_length=1, max_length=80)
+    blood_pressure_count: int = strict_int_field(minimum=0, maximum=500)
+    blood_pressure_range: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class AfterDoseVitalsTable(StrictModel):
+    medicines: list[AfterDoseVitalsMedicineRow] = Field(default_factory=list, max_length=20)
+
+
+class CheckInTimingMedicineRow(StrictModel):
+    medicine: str = Field(min_length=1, max_length=120)
+    taken: int = strict_int_field(minimum=0, maximum=500)
+    on_time: int = strict_int_field(minimum=0, maximum=500)
+    early: int = strict_int_field(minimum=0, maximum=500)
+    late: int = strict_int_field(minimum=0, maximum=500)
+    without_timing: int = strict_int_field(minimum=0, maximum=500)
+
+
+class CheckInTimingTable(StrictModel):
+    medicines: list[CheckInTimingMedicineRow] = Field(default_factory=list, max_length=20)
+    complete_days: int = strict_int_field(minimum=0, maximum=366)
+    tracked_days: int = strict_int_field(minimum=0, maximum=366)
 
 
 class AssistantNarrative(StrictModel):
@@ -171,6 +230,9 @@ class AssistantNarrative(StrictModel):
     observations: list[Observation] = Field(default_factory=list, max_length=10)
     follow_up_questions: list[str] = Field(default_factory=list, max_length=5)
     disclaimer: str = Field(min_length=1, max_length=300)
+    doctor_summary_table: DoctorSummaryTable | None = None
+    after_dose_vitals_table: AfterDoseVitalsTable | None = None
+    check_in_timing_table: CheckInTimingTable | None = None
 
 
 class AssistantResponse(AssistantNarrative):

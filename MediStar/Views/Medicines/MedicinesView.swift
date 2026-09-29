@@ -16,6 +16,7 @@ struct MedicinesView: View {
     @State private var showDeleteConfirmation = false
     @Query(sort: \MedicineEntity.createdAt) private var medicineEntities: [MedicineEntity]
     @Query private var storedRecords: [MedicationRecordEntity]
+    @AppStorage("medistar.shouldOpenFirstMedicineEditor") private var shouldOpenFirstMedicineEditor = false
 
     init(onEndMedicine: ((MedicineProfile) -> Void)? = nil) {
         self.onEndMedicine = onEndMedicine
@@ -41,6 +42,14 @@ struct MedicinesView: View {
             }
     }
 
+    /// Start a new medicine with a distinct color when one is available. The
+    /// user can still tap the star in the editor to choose another style.
+    private var suggestedNewMedicineStyle: MedicationStarStyle {
+        let stylesInUse = Set(medicines.map(\.starStyle))
+        return MedicationStarStyle.allCases.first(where: { !stylesInUse.contains($0) })
+            ?? MedicationStarStyle.allCases[medicines.count % MedicationStarStyle.allCases.count]
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
@@ -62,7 +71,7 @@ struct MedicinesView: View {
         .background(AppColors.background.ignoresSafeArea())
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: selectedSection)
         .sheet(isPresented: $showAddMedicine) {
-            MedicineEditorView(medicine: nil) { newMedicine in
+            MedicineEditorView(medicine: nil, defaultStarStyle: suggestedNewMedicineStyle) { newMedicine in
                 modelContext.insert(MedicineEntity(profile: newMedicine))
                 try? modelContext.save()
                 selectedSection = 0
@@ -111,8 +120,14 @@ struct MedicinesView: View {
             Text("The medicine definition will be removed. Existing medication records will remain in your timeline.")
         }
         .onAppear {
+            if shouldOpenFirstMedicineEditor && medicineEntities.isEmpty {
+                shouldOpenFirstMedicineEditor = false
+                showAddMedicine = true
+            } else if !medicineEntities.isEmpty {
+                shouldOpenFirstMedicineEditor = false
+            }
 #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-pillmate.previewAddMedicine") {
+            if ProcessInfo.processInfo.arguments.contains("-medistar.previewAddMedicine") {
                 DispatchQueue.main.async {
                     showAddMedicine = true
                 }
@@ -290,12 +305,8 @@ struct MedicinesView: View {
     /// Each completed medication record represents one consumed dose. This
     /// keeps inventory in sync with Today/Records without a second counter.
     private func consumedDoseCount(for medicine: MedicineProfile) -> Int {
-        storedRecords.reduce(into: 0) { count, record in
-            if record.takenAt != nil,
-               record.medicineName.caseInsensitiveCompare(medicine.name) == .orderedSame {
-                count += 1
-            }
-        }
+        guard let entity = medicineEntities.first(where: { $0.id == medicine.id }) else { return 0 }
+        return MedicationInventory.completedDoseCount(for: entity, in: storedRecords)
     }
 
     private func remainingStock(for medicine: MedicineProfile) -> Int {

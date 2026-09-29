@@ -1,6 +1,6 @@
-# PillMate Backend
+# MediStar Backend
 
-Python + FastAPI backend for PillMate's records-only AI assistant.
+Python + FastAPI backend for MediStar's records-only AI assistant.
 
 ## Responsibilities
 
@@ -18,7 +18,7 @@ of truth in the first version and send only the records needed for the selected 
 ## Local development
 
 ```bash
-cd PillMateBackend
+cd MediStarBackend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'

@@ -39,6 +39,18 @@ class StaticSigningKeyClient:
         return SimpleNamespace(key=self.public_key)
 
 
+class FlakySigningKeyClient(StaticSigningKeyClient):
+    def __init__(self, public_key) -> None:
+        super().__init__(public_key)
+        self.calls = 0
+
+    def get_signing_key_from_jwt(self, token: str):
+        self.calls += 1
+        if self.calls == 1:
+            raise jwt.PyJWKClientConnectionError("temporary connection failure")
+        return super().get_signing_key_from_jwt(token)
+
+
 class MutableClock:
     def __init__(self, now: datetime) -> None:
         self.now = now
@@ -58,7 +70,7 @@ def signed_apple_token(
     private_key,
     *,
     raw_nonce: str,
-    audience: str = "misaki.PillMate",
+    audience: str = "misaki.MediStar",
     expires_at: datetime | None = None,
 ) -> str:
     return jwt.encode(
@@ -79,7 +91,7 @@ def test_apple_identity_token_signature_claims_and_nonce_are_verified() -> None:
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     raw_nonce = "one-time-sign-in-nonce"
     verifier = AppleTokenVerifier(
-        client_id="misaki.PillMate",
+        client_id="misaki.MediStar",
         signing_key_client=StaticSigningKeyClient(private_key.public_key()),
     )
 
@@ -93,13 +105,33 @@ def test_apple_identity_token_signature_claims_and_nonce_are_verified() -> None:
     assert user == AuthenticatedUser(subject="apple-user-subject")
 
 
+def test_apple_signing_key_fetch_retries_one_temporary_connection_failure() -> None:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    raw_nonce = "one-time-sign-in-nonce"
+    client = FlakySigningKeyClient(private_key.public_key())
+    verifier = AppleTokenVerifier(
+        client_id="misaki.MediStar",
+        signing_key_client=client,
+    )
+
+    user = asyncio.run(
+        verifier.verify(
+            signed_apple_token(private_key, raw_nonce=raw_nonce),
+            raw_nonce,
+        )
+    )
+
+    assert user == AuthenticatedUser(subject="apple-user-subject")
+    assert client.calls == 2
+
+
 @pytest.mark.parametrize(
     ("audience", "provided_nonce", "expires_at"),
     [
         ("another.client", "one-time-sign-in-nonce", None),
-        ("misaki.PillMate", "wrong-nonce", None),
+        ("misaki.MediStar", "wrong-nonce", None),
         (
-            "misaki.PillMate",
+            "misaki.MediStar",
             "one-time-sign-in-nonce",
             datetime.now(UTC) - timedelta(minutes=1),
         ),
@@ -113,7 +145,7 @@ def test_apple_identity_token_rejects_invalid_security_claims(
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     signed_nonce = "one-time-sign-in-nonce"
     verifier = AppleTokenVerifier(
-        client_id="misaki.PillMate",
+        client_id="misaki.MediStar",
         signing_key_client=StaticSigningKeyClient(private_key.public_key()),
     )
     token = signed_apple_token(
@@ -132,7 +164,7 @@ def test_apple_identity_token_rejects_untrusted_signature() -> None:
     untrusted_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     raw_nonce = "one-time-sign-in-nonce"
     verifier = AppleTokenVerifier(
-        client_id="misaki.PillMate",
+        client_id="misaki.MediStar",
         signing_key_client=StaticSigningKeyClient(trusted_key.public_key()),
     )
     token = signed_apple_token(untrusted_key, raw_nonce=raw_nonce)
@@ -275,7 +307,7 @@ def test_request_log_contains_only_redacted_operational_fields(
     monkeypatch.setattr(app.state, "apple_token_verifier", SubjectFromTokenVerifier())
     monkeypatch.setattr(settings, "openai_api_key", None)
     request_logger.addHandler(caplog.handler)
-    caplog.set_level(logging.INFO, logger="pillmate.request")
+    caplog.set_level(logging.INFO, logger="medistar.request")
 
     try:
         response = TestClient(app).post(
@@ -287,7 +319,7 @@ def test_request_log_contains_only_redacted_operational_fields(
         request_logger.removeHandler(caplog.handler)
 
     assert response.status_code == 503
-    records = [record for record in caplog.records if record.name == "pillmate.request"]
+    records = [record for record in caplog.records if record.name == "medistar.request"]
     assert len(records) == 1
     logged = json.loads(records[0].getMessage())
     assert set(logged) == {"request_id", "duration_ms", "status_code", "error_type"}

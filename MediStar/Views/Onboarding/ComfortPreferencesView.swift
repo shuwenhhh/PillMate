@@ -4,7 +4,7 @@ struct ComfortPreferencesView: View {
     let onBack: () -> Void
     let onSave: () -> Void
 
-    @AppStorage("pillmate.shareUsageAnalytics") private var shareUsageAnalytics = false
+    @AppStorage("medistar.shareUsageAnalytics") private var shareUsageAnalytics = false
 
     var body: some View {
         NavigationStack {
@@ -156,10 +156,9 @@ struct ComfortPreferencesView: View {
             Image(systemName: "star")
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(OnboardingPalette.indicator)
-            Image("CalendarStar")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 20, height: 20)
+            Image(systemName: "star.fill")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(Color(red: 1.00, green: 0.76, blue: 0.16))
             Image(systemName: "star")
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(OnboardingPalette.indicator)

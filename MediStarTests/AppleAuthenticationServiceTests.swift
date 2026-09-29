@@ -76,7 +76,7 @@ final class AppleAuthenticationServiceTests: XCTestCase {
 
     func testKeychainRoundTripAndDeletion() throws {
         let store = AppleAuthenticationStore(
-            service: "PillMateTests.AppleAuthentication.\(UUID().uuidString)"
+            service: "MediStarTests.AppleAuthentication.\(UUID().uuidString)"
         )
         defer { store.clearCredentials() }
 
@@ -103,7 +103,7 @@ final class AppleAuthenticationServiceTests: XCTestCase {
 
     func testExpiredKeychainCredentialIsRemoved() throws {
         let store = AppleAuthenticationStore(
-            service: "PillMateTests.AppleAuthentication.\(UUID().uuidString)"
+            service: "MediStarTests.AppleAuthentication.\(UUID().uuidString)"
         )
         defer { store.clearCredentials() }
 

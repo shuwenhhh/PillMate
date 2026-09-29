@@ -144,10 +144,12 @@ final class AppleAuthenticationStore {
     static let shared = AppleAuthenticationStore()
 
     private let service: String
+    private let allowsLegacyMigration: Bool
     private let account = "apple-id-token-session"
 
-    init(service: String = "PillMate.AppleAuthentication") {
+    init(service: String = "MediStar.AppleAuthentication", allowsLegacyMigration: Bool = true) {
         self.service = service
+        self.allowsLegacyMigration = allowsLegacyMigration
     }
 
     func save(_ credentials: AppleRequestCredentials) throws {
@@ -186,7 +188,10 @@ final class AppleAuthenticationStore {
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         guard status == errSecSuccess else {
             if status == errSecItemNotFound {
-                throw AppleAuthenticationError.noStoredCredential
+                guard allowsLegacyMigration else {
+                    throw AppleAuthenticationError.noStoredCredential
+                }
+                return try migrateLegacyCredentials(now: now)
             }
             throw AppleAuthenticationError.secureStorageFailed
         }
@@ -217,6 +222,15 @@ final class AppleAuthenticationStore {
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw AppleAuthenticationError.secureStorageFailed
         }
+    }
+
+    private func migrateLegacyCredentials(now: Date) throws -> AppleRequestCredentials {
+        let legacyService = ["Pill", "Mate", ".AppleAuthentication"].joined()
+        let legacyStore = AppleAuthenticationStore(service: legacyService, allowsLegacyMigration: false)
+        let credentials = try legacyStore.credentials(now: now)
+        try save(credentials)
+        try? legacyStore.deleteCredentials()
+        return credentials
     }
 
     func clearCredentials() {

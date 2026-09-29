@@ -126,7 +126,7 @@ struct ModernMedicineEditorView: View {
             }
             .onAppear {
 #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("-pillmate.previewAddMedicine") {
+                if ProcessInfo.processInfo.arguments.contains("-medistar.previewAddMedicine") {
                     DispatchQueue.main.async {
                         editorScrollTarget = "supply"
                     }

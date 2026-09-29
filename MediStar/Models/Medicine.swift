@@ -12,7 +12,7 @@ struct MedicineProfile: Identifiable {
     /// The only quantity the user enters. Current stock and days remaining are
     /// derived from this value, completed medication records, and frequency.
     var originalQuantity: Int
-    /// When enabled, Pillmate sends one concise reminder as the calculated
+    /// When enabled, MediStar sends one concise reminder as the calculated
     /// stock reaches this number of tablets.
     var lowStockReminderEnabled: Bool = false
     var lowStockThreshold: Int = 5

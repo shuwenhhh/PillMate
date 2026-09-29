@@ -8,10 +8,11 @@ struct MedicineEditorView: View {
 
     init(
         medicine: MedicineProfile?,
+        defaultStarStyle: MedicationStarStyle = .defaultStyle,
         onSave: @escaping (MedicineProfile) -> Void,
         onEnd: ((MedicineProfile) -> Void)? = nil
     ) {
-        self.initialMedicine = medicine ?? Self.makeNewMedicine()
+        self.initialMedicine = medicine ?? Self.makeNewMedicine(starStyle: defaultStarStyle)
         self.isEditing = medicine != nil
         self.onSave = onSave
         self.onEnd = onEnd
@@ -26,9 +27,9 @@ struct MedicineEditorView: View {
         )
     }
 
-    private static func makeNewMedicine() -> MedicineProfile {
+    private static func makeNewMedicine(starStyle: MedicationStarStyle) -> MedicineProfile {
 #if DEBUG
-        let previewLowStockReminder = ProcessInfo.processInfo.arguments.contains("-pillmate.previewAddMedicine")
+        let previewLowStockReminder = ProcessInfo.processInfo.arguments.contains("-medistar.previewAddMedicine")
 #else
         let previewLowStockReminder = false
 #endif
@@ -43,7 +44,7 @@ struct MedicineEditorView: View {
             prescribedBy: "",
             purpose: "",
             instructions: "",
-            starStyle: .yellow
+            starStyle: starStyle
         )
     }
 }

@@ -17,7 +17,7 @@ MAX_NONCE_LENGTH = 256
 
 
 class InvalidAppleToken(Exception):
-    """The presented credential cannot authenticate a PillMate user."""
+    """The presented credential cannot authenticate a MediStar user."""
 
 
 class AppleAuthenticationUnavailable(Exception):
@@ -66,11 +66,24 @@ class AppleTokenVerifier:
         if not raw_nonce or len(raw_nonce) > MAX_NONCE_LENGTH:
             raise InvalidAppleToken("nonce has an invalid length")
 
+        signing_key = None
+        for attempt in range(2):
+            try:
+                signing_key = await asyncio.to_thread(
+                    self.signing_key_client.get_signing_key_from_jwt,
+                    identity_token,
+                )
+                break
+            except jwt.PyJWKClientConnectionError as error:
+                if attempt == 1:
+                    raise AppleAuthenticationUnavailable(
+                        "Apple signing keys are unavailable"
+                    ) from error
+                await asyncio.sleep(0.2)
+
         try:
-            signing_key = await asyncio.to_thread(
-                self.signing_key_client.get_signing_key_from_jwt,
-                identity_token,
-            )
+            if signing_key is None:
+                raise AppleAuthenticationUnavailable("Apple signing keys are unavailable")
             claims = jwt.decode(
                 identity_token,
                 signing_key.key,
@@ -79,8 +92,6 @@ class AppleTokenVerifier:
                 issuer=self.issuer,
                 options={"require": ["iss", "aud", "exp", "sub", "nonce"]},
             )
-        except jwt.PyJWKClientConnectionError as error:
-            raise AppleAuthenticationUnavailable("Apple signing keys are unavailable") from error
         except (jwt.InvalidTokenError, jwt.PyJWKClientError, ValueError, TypeError) as error:
             raise InvalidAppleToken("identity token verification failed") from error
 

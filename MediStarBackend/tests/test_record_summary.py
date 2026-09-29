@@ -8,11 +8,16 @@ import pytest
 from app.policy import DISCLAIMER
 from app.schemas import (
     AI_CONSENT_VERSION,
-    AssistantNarrative,
     AssistantRequest,
-    Observation,
+    OpenAIAssistantOutput,
 )
 from app.services.assistant_service import AssistantService
+from app.services.model_context import (
+    build_after_dose_vitals_table,
+    build_check_in_timing_table,
+    build_doctor_summary_table,
+    build_model_facts,
+)
 from app.services.record_summary import summarize_records
 
 
@@ -174,6 +179,68 @@ def test_cross_midnight_window_is_calculated_deterministically() -> None:
     assert facts["medication.window_inside_count"][0].value == 1
 
 
+def test_summary_counts_days_when_every_scheduled_dose_was_completed() -> None:
+    payload = summary_payload()
+    payload["dateRange"] = {"start": "2026-09-12", "end": "2026-09-14"}
+    payload["medications"] = [
+        {
+            "id": "once-daily",
+            "name": "Once daily",
+            "frequency": "Once a day",
+            "isActive": True,
+            "startDate": "2026-09-12",
+        },
+        {
+            "id": "twice-daily",
+            "name": "Twice daily",
+            "frequency": "Twice a day",
+            "isActive": True,
+            "startDate": "2026-09-12",
+        },
+        {
+            "id": "as-needed",
+            "name": "As needed",
+            "frequency": "As needed",
+            "isActive": True,
+            "startDate": "2026-09-12",
+        },
+    ]
+    payload["medicationEvents"] = [
+        {"id": "once-12", "medicineId": "once-daily", "recordedAt": "2026-09-12T08:00:00+08:00", "takenAt": "08:00"},
+        {"id": "twice-12-am", "medicineId": "twice-daily", "recordedAt": "2026-09-12T08:30:00+08:00", "takenAt": "08:30"},
+        {"id": "twice-12-pm", "medicineId": "twice-daily", "recordedAt": "2026-09-12T20:30:00+08:00", "takenAt": "20:30"},
+        {"id": "once-13", "medicineId": "once-daily", "recordedAt": "2026-09-13T08:00:00+08:00", "takenAt": "08:00"},
+        {"id": "once-14", "medicineId": "once-daily", "recordedAt": "2026-09-14T08:00:00+08:00", "takenAt": "08:00"},
+        {"id": "twice-14-am", "medicineId": "twice-daily", "recordedAt": "2026-09-14T08:30:00+08:00", "takenAt": "08:30"},
+        {"id": "twice-14-pm", "medicineId": "twice-daily", "recordedAt": "2026-09-14T20:30:00+08:00", "takenAt": "20:30"},
+    ]
+    payload["journalEntries"] = []
+
+    facts = evidence_by_statistic(AssistantRequest.model_validate(payload))
+
+    assert facts["medication.scheduled_day_count"][0].value == 3
+    assert facts["medication.fully_completed_day_count"][0].value == 2
+
+
+def test_summary_counts_zero_fully_completed_days_without_guessing_prn_doses() -> None:
+    payload = summary_payload()
+    payload["dateRange"] = {"start": "2026-09-14", "end": "2026-09-14"}
+    payload["medications"] = [
+        {"id": "medicine-1", "name": "First", "frequency": "Once a day", "isActive": True},
+        {"id": "medicine-2", "name": "Second", "frequency": "Once a day", "isActive": True},
+        {"id": "prn", "name": "PRN", "frequency": "As needed", "isActive": True},
+    ]
+    payload["medicationEvents"] = [
+        {"id": "only-first", "medicineId": "medicine-1", "recordedAt": "2026-09-14T08:00:00+08:00", "takenAt": "08:00"}
+    ]
+    payload["journalEntries"] = []
+
+    facts = evidence_by_statistic(AssistantRequest.model_validate(payload))
+
+    assert facts["medication.scheduled_day_count"][0].value == 1
+    assert facts["medication.fully_completed_day_count"][0].value == 0
+
+
 class FakeSafety:
     def request_text(self, payload: dict) -> str:
         return json.dumps(payload)
@@ -189,12 +256,7 @@ class FakeResponses:
 
     async def parse(self, **kwargs):
         self.input_payload = json.loads(kwargs["input"])
-        parsed = AssistantNarrative(
-            status="ok",
-            summary="Deterministic summary.",
-            observations=[Observation(text="Two doses were recorded.", evidence_ids=[self.evidence_id])],
-            disclaimer="model supplied text",
-        )
+        parsed = OpenAIAssistantOutput(summary="Deterministic summary.")
         return SimpleNamespace(output_parsed=parsed)
 
 
@@ -203,8 +265,12 @@ class FakeClient:
         self.responses = FakeResponses(evidence_id)
 
 
-def test_model_receives_precomputed_evidence_not_raw_records() -> None:
-    request = AssistantRequest.model_validate(summary_payload())
+def test_model_receives_compact_precomputed_facts_not_raw_records() -> None:
+    payload = summary_payload()
+    # Timing questions are intentionally answered locally. Use vitals here to
+    # verify the remaining model-backed path receives facts, never raw records.
+    payload["questionType"] = "vitals"
+    request = AssistantRequest.model_validate(payload)
     deterministic = summarize_records(request)
     client = FakeClient(deterministic.evidence[0].id)
     service = AssistantService(client=client)
@@ -213,9 +279,148 @@ def test_model_receives_precomputed_evidence_not_raw_records() -> None:
     response = asyncio.run(service.generate(request))
 
     assert client.responses.input_payload is not None
-    assert "deterministicSummary" in client.responses.input_payload
-    assert "medicationEvents" not in client.responses.input_payload
-    assert "journalEntries" not in client.responses.input_payload
+    assert "recordFacts" in client.responses.input_payload
+    assert "selectedRecords" not in client.responses.input_payload
+    assert "deterministicSummary" not in client.responses.input_payload
+    assert client.responses.input_payload["recordFacts"]["overallHeartRate"]["count"] == 3
     assert response.disclaimer == DISCLAIMER
     assert response.evidence == deterministic.evidence
-    assert response.observations[0].evidence_ids[0] in {item.id for item in response.evidence}
+    assert response.observations == []
+
+
+def test_compact_model_facts_keep_symptoms_linked_to_the_medicine() -> None:
+    payload = summary_payload()
+    payload["medicationEvents"][0]["feeling"] = "Energetic"
+    request = AssistantRequest.model_validate(payload)
+    facts = build_model_facts(request, summarize_records(request))
+
+    medicine = facts["medications"][0]
+    assert medicine["medicine"] == "Example"
+    assert medicine["recordedFeelings"] == [
+        {"value": "Energetic", "count": 1, "timing": "in the same check-in"}
+    ]
+    assert medicine["recordedSymptoms"] == [
+        {"value": "Headache", "count": 1, "timing": "after"}
+    ]
+    assert facts["adherence"]["onTimeCheckIns"] == 1
+
+
+def test_model_facts_include_the_specific_incomplete_scheduled_date() -> None:
+    payload = summary_payload()
+    payload["medicationEvents"] = [
+        {
+            "id": "completed-13",
+            "medicineId": "medicine-1",
+            "recordedAt": "2026-09-13T08:00:00+08:00",
+            "isCompleted": True,
+        }
+    ]
+    payload["journalEntries"] = []
+
+    facts = build_model_facts(
+        AssistantRequest.model_validate(payload),
+        summarize_records(AssistantRequest.model_validate(payload)),
+    )
+
+    assert facts["missingScheduledDates"] == ["2026-09-14"]
+
+
+def test_doctor_summary_table_uses_recorded_symptoms_and_vital_ranges() -> None:
+    request = AssistantRequest.model_validate(summary_payload())
+
+    table = build_doctor_summary_table(request, summarize_records(request))
+
+    assert table["medicines"] == [
+        {"medicine": "Example", "symptoms": [{"label": "Headache", "count": 1}]}
+    ]
+    assert table["heartRate"] == {"range": "70–76 bpm", "latest": "76 bpm"}
+    assert table["bloodPressure"] == {
+        "range": "118–121 / 76–79 mmHg",
+        "latest": "121 / 79 mmHg",
+    }
+
+
+def test_after_dose_vitals_table_groups_ranges_by_medicine() -> None:
+    request = AssistantRequest.model_validate(summary_payload())
+
+    table = build_after_dose_vitals_table(request, summarize_records(request))
+
+    assert table["medicines"] == [
+        {
+            "medicine": "Example",
+            "heartRateCount": 3,
+            "heartRateRange": "70–76 bpm",
+            "bloodPressureCount": 2,
+            "bloodPressureRange": "118–121 / 76–79 mmHg",
+        }
+    ]
+
+
+def test_check_in_timing_table_lists_early_and_late_by_medicine() -> None:
+    payload = summary_payload()
+    payload["dateRange"] = {"start": "2026-09-13", "end": "2026-09-14"}
+    payload["medications"] = [
+        {
+            "id": "morning",
+            "name": "Morning medicine",
+            "timeWindow": "8:00–10:00 AM",
+            "frequency": "Once a day",
+        },
+        {
+            "id": "evening",
+            "name": "Evening medicine",
+            "timeWindow": "6:00–8:00 PM",
+            "frequency": "Once a day",
+        },
+    ]
+    payload["medicationEvents"] = [
+        {
+            "id": "morning-13",
+            "medicineId": "morning",
+            "recordedAt": "2026-09-13T07:30:00+08:00",
+            "scheduledWindow": "8:00–10:00 AM",
+            "takenAt": "7:30 AM",
+            "isCompleted": True,
+        },
+        {
+            "id": "evening-13",
+            "medicineId": "evening",
+            "recordedAt": "2026-09-13T09:00:00+08:00",
+            "scheduledWindow": "6:00–8:00 PM",
+            "takenAt": "9:00 PM",
+            "isCompleted": True,
+        },
+        {
+            "id": "morning-14",
+            "medicineId": "morning",
+            "recordedAt": "2026-09-14T08:30:00+08:00",
+            "scheduledWindow": "8:00–10:00 AM",
+            "takenAt": "8:30 AM",
+            "isCompleted": True,
+        },
+    ]
+    payload["journalEntries"] = []
+    request = AssistantRequest.model_validate(payload)
+
+    table = build_check_in_timing_table(request)
+
+    assert table["completeDays"] == 1
+    assert table["trackedDays"] == 2
+    assert table["medicines"] == [
+        {
+            "medicine": "Evening medicine",
+            "taken": 1,
+            "onTime": 0,
+            "early": 0,
+            "late": 1,
+            "withoutTiming": 0,
+        },
+        {
+            "medicine": "Morning medicine",
+            "taken": 2,
+            "onTime": 1,
+            "early": 1,
+            "late": 0,
+            "withoutTiming": 0,
+        },
+    ]

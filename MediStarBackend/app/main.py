@@ -33,7 +33,7 @@ from .services.privacy_service import (
 
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
-request_logger = logging.getLogger("pillmate.request")
+request_logger = logging.getLogger("medistar.request")
 request_logger.setLevel(logging.INFO)
 request_logger.propagate = False
 if not request_logger.handlers:
@@ -46,9 +46,9 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 app = FastAPI(
-    title="PillMate Backend",
+    title="MediStar Backend",
     version="0.1.0",
-    description="Safe, records-only assistant endpoint for PillMate.",
+    description="Safe, records-only assistant endpoint for MediStar.",
 )
 app.state.apple_token_verifier = AppleTokenVerifier()
 app.state.request_context_store = RequestContextStore()
@@ -197,7 +197,11 @@ async def require_apple_user(
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "ai_model": settings.openai_model,
+        "reasoning_effort": AssistantService._reasoning_effort(),
+    }
 
 
 @app.post("/v1/assistant/analyze", response_model=AssistantResponse)

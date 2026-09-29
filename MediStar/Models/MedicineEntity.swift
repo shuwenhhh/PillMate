@@ -112,3 +112,72 @@ final class MedicineEntity {
         starStyleRawValue = profile.starStyle.rawValue
     }
 }
+
+/// Inventory belongs to one medicine entry, not to every historical record
+/// that happens to share its name. Records from before the entry was created
+/// are therefore excluded (important for re-added medicines and preview data).
+enum MedicationInventory {
+    static func completedDoseCount(
+        for medicine: MedicineEntity,
+        in records: [MedicationRecordEntity],
+        calendar: Calendar = .current,
+        locale: Locale = .current
+    ) -> Int {
+        records.reduce(into: 0) { count, record in
+            guard record.takenAt != nil,
+                  record.medicineName.caseInsensitiveCompare(medicine.name) == .orderedSame,
+                  eventDate(for: record, calendar: calendar, locale: locale) >= medicine.createdAt
+            else { return }
+            count += 1
+        }
+    }
+
+    private static func eventDate(
+        for record: MedicationRecordEntity,
+        calendar: Calendar,
+        locale: Locale
+    ) -> Date {
+        guard let takenAt = record.takenAt else { return record.recordDate }
+
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        guard let parsedTime = formatter.date(from: takenAt) else { return record.recordDate }
+
+        let time = calendar.dateComponents([.hour, .minute], from: parsedTime)
+        return calendar.date(
+            bySettingHour: time.hour ?? 0,
+            minute: time.minute ?? 0,
+            second: 0,
+            of: record.recordDate
+        ) ?? record.recordDate
+    }
+}
+
+/// Shared completion semantics for Records and celebrations.
+///
+/// The medication timeline is the source of truth: a day lights up only when
+/// it has records and every timeline record for that day has been marked taken.
+/// The scheduled time is intentionally not part of this decision.
+enum MedicationCompletion {
+    static func isFullyCompletedToday(_ doses: [MedicineDose]) -> Bool {
+        !doses.isEmpty && doses.allSatisfy { $0.isTaken && !$0.isSkipped }
+    }
+
+    static func fullyCompletedDates(
+        records: [MedicationRecordEntity],
+        calendar: Calendar = .current
+    ) -> Set<Date> {
+        let recordsByDay = Dictionary(grouping: records) {
+            calendar.startOfDay(for: $0.recordDate)
+        }
+
+        return Set(recordsByDay.compactMap { day, dayRecords in
+            guard !dayRecords.isEmpty, dayRecords.allSatisfy({ $0.takenAt != nil }) else {
+                return nil
+            }
+            return day
+        })
+    }
+}

@@ -1,6 +1,6 @@
-# PillMate 后端执行计划
+# MediStar 后端执行计划
 
-本文档把 PillMate 的 AI Assistant 后端拆成可独立验收的 Batch。每个 Batch 建议对应一个 Git commit，完成后再进入下一批。
+本文档把 MediStar 的 AI Assistant 后端拆成可独立验收的 Batch。每个 Batch 建议对应一个 Git commit，完成后再进入下一批。
 
 ## 总体架构
 
@@ -39,7 +39,7 @@ SwiftUI 结果卡片
 
 **任务**
 
-- 保持 `PillMateBackend` 为独立 Python 服务。
+- 保持 `MediStarBackend` 为独立 Python 服务。
 - 完成 FastAPI app、环境变量、CORS 和统一错误格式。
 - 保留 `GET /health`。
 - 提供本地启动命令和 `.env.example`。

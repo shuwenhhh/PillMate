@@ -119,24 +119,27 @@ struct GlassStarJar: View {
             }
 
             if new < old {
-                // Undoing a check-in removes the corresponding reserved slot
-                // and prevents the ended task from remaining in the jar.
-                let removedIDs = animatedStars
-                    .filter { $0.slot >= max(new, 0) }
-                    .map(\.id)
-                animatedStars.removeAll { $0.slot >= max(new, 0) }
-                movingStarIDs.subtract(removedIDs)
+                // A dose can be unticked from the middle of the schedule, so
+                // rebuild the settled stars instead of assuming the last slot
+                // was the one removed.
+                movingStarIDs.removeAll()
+                animatedStars = Array(newStyles.prefix(JarMotion.capacity)).enumerated().map { index, style in
+                    AnimatedStar(slot: index, style: style, start: 0, instant: true)
+                }
                 return
             }
 
             let added = min(new, JarMotion.capacity) - min(max(old, 0), JarMotion.capacity)
             guard added > 0 else { return }
+            let newlyCompletedStyles = addedStyles(from: oldStyles, to: newStyles)
             let start = Date().timeIntervalSinceReferenceDate
             for offset in 0..<added {
                 let slot = min(max(old, 0), JarMotion.capacity) + offset
                 let star = AnimatedStar(
                     slot: slot,
-                    style: newStyles.indices.contains(slot) ? newStyles[slot] : .defaultStyle,
+                    style: newlyCompletedStyles.indices.contains(offset)
+                        ? newlyCompletedStyles[offset]
+                        : .defaultStyle,
                     start: start + Double(offset) * 0.08,
                     instant: reduceMotion
                 )
@@ -149,6 +152,24 @@ struct GlassStarJar: View {
                     movingStarIDs.remove(id)
                 }
             }
+        }
+    }
+
+    private func addedStyles(
+        from oldStyles: [MedicationStarStyle],
+        to newStyles: [MedicationStarStyle]
+    ) -> [MedicationStarStyle] {
+        var remainingOldCounts: [MedicationStarStyle: Int] = [:]
+        for style in oldStyles {
+            remainingOldCounts[style, default: 0] += 1
+        }
+
+        return newStyles.filter { style in
+            guard let remaining = remainingOldCounts[style], remaining > 0 else {
+                return true
+            }
+            remainingOldCounts[style] = remaining - 1
+            return false
         }
     }
 

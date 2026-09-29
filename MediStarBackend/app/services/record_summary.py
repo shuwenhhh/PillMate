@@ -2,7 +2,7 @@ import hashlib
 import json
 import re
 from collections import defaultdict
-from datetime import datetime, time
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from ..schemas import (
@@ -63,6 +63,38 @@ def _event_time(event: MedicationEvent, timezone: ZoneInfo) -> datetime | None:
     return datetime.combine(local_date, time(minutes // 60, minutes % 60), timezone)
 
 
+def medication_timing(
+    event: MedicationEvent,
+    medicine_window: str,
+    timezone: ZoneInfo,
+) -> str:
+    """Classify one completed check-in without treating early/late as incomplete."""
+
+    event_time = _event_time(event, timezone)
+    window_text = event.scheduled_window or medicine_window
+    window = _time_window_minutes(window_text)
+    if event.taken_at is None or event_time is None or window is None:
+        return "without_timing"
+
+    actual = event_time.hour * 60 + event_time.minute
+    start, end = window
+    normalized_end = end + 24 * 60 if end < start else end
+    closest: tuple[int, str] | None = None
+    for shift in (-24 * 60, 0, 24 * 60):
+        shifted_start = start + shift
+        shifted_end = normalized_end + shift
+        if shifted_start <= actual <= shifted_end:
+            return "on_time"
+        candidate = (
+            (shifted_start - actual, "early")
+            if actual < shifted_start
+            else (actual - shifted_end, "late")
+        )
+        if closest is None or candidate[0] < closest[0]:
+            closest = candidate
+    return closest[1] if closest else "without_timing"
+
+
 def _relation(offset_minutes: int, *, same_record: bool = False) -> str:
     if same_record:
         return "same_record"
@@ -75,6 +107,24 @@ def _relation(offset_minutes: int, *, same_record: bool = False) -> str:
 
 def _local_datetime(value: datetime, timezone: ZoneInfo) -> datetime:
     return value.replace(tzinfo=timezone) if value.tzinfo is None else value.astimezone(timezone)
+
+
+def _daily_dose_count(frequency: str) -> int | None:
+    """Return scheduled daily doses; PRN and unknown schedules are not assumed."""
+
+    normalized = " ".join(frequency.casefold().replace("-", " ").split())
+    counts = {
+        "daily": 1,
+        "once a day": 1,
+        "once daily": 1,
+        "twice a day": 2,
+        "twice daily": 2,
+        "three times a day": 3,
+        "three times daily": 3,
+        "four times a day": 4,
+        "four times daily": 4,
+    }
+    return counts.get(normalized)
 
 
 def _evidence(
@@ -149,7 +199,7 @@ def summarize_records(request: AssistantRequest) -> DeterministicSummary:
     taken_events: list[tuple[MedicationEvent, datetime | None]] = [
         (event, _event_time(event, timezone))
         for event in request.medication_events
-        if event.taken_at is not None
+        if event.is_completed is True or (event.is_completed is None and event.taken_at is not None)
     ]
     taken_events.sort(
         key=lambda item: (item[1] or datetime.max.replace(tzinfo=timezone), item[0].id)
@@ -165,19 +215,19 @@ def summarize_records(request: AssistantRequest) -> DeterministicSummary:
         )
 
     timing_groups: dict[str, list[str]] = {"inside": [], "outside": [], "unclassified": []}
-    for event, event_time in taken_events:
-        window_text = event.scheduled_window or medicine_windows.get(event.medicine_id, "")
-        window = _time_window_minutes(window_text)
-        if event_time is None or window is None:
-            timing_groups["unclassified"].append(event.id)
-            continue
-        actual = event_time.hour * 60 + event_time.minute
-        start, end = window
-        if end < start:
-            inside = actual >= start or actual <= end
-        else:
-            inside = start <= actual <= end
-        timing_groups["inside" if inside else "outside"].append(event.id)
+    for event, _ in taken_events:
+        timing = medication_timing(
+            event,
+            medicine_windows.get(event.medicine_id, ""),
+            timezone,
+        )
+        group = {
+            "on_time": "inside",
+            "early": "outside",
+            "late": "outside",
+            "without_timing": "unclassified",
+        }[timing]
+        timing_groups[group].append(event.id)
     for name in ("inside", "outside", "unclassified"):
         source_ids = sorted(timing_groups[name])
         if source_ids:
@@ -189,6 +239,68 @@ def summarize_records(request: AssistantRequest) -> DeterministicSummary:
                     unit="records",
                 )
             )
+
+    # Count days on which every scheduled dose for every active medication was
+    # completed. PRN and unknown-frequency medicines are excluded rather than
+    # guessed. Medication lifecycle dates make fully missed days visible too.
+    scheduled_medications = {
+        medicine.id: (medicine, dose_count)
+        for medicine in request.medications
+        if (dose_count := _daily_dose_count(medicine.frequency)) is not None
+        and (medicine.is_active or medicine.end_date is not None)
+    }
+    taken_by_day_and_medicine: dict[date, dict[str, list[str]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    all_taken_ids = sorted(event.id for event, _ in taken_events)
+    for event, event_time in taken_events:
+        event_date = (
+            event_time.date()
+            if event_time is not None
+            else _local_datetime(event.recorded_at, timezone).date()
+        )
+        taken_by_day_and_medicine[event_date][event.medicine_id].append(event.id)
+
+    scheduled_days = 0
+    fully_completed_days = 0
+    completed_day_source_ids: list[str] = []
+    current_day = request.date_range.start
+    while current_day <= request.date_range.end:
+        required = {
+            medicine_id: dose_count
+            for medicine_id, (medicine, dose_count) in scheduled_medications.items()
+            if (medicine.start_date is None or medicine.start_date <= current_day)
+            and (medicine.end_date is None or current_day <= medicine.end_date)
+        }
+        if required:
+            scheduled_days += 1
+            completed = taken_by_day_and_medicine.get(current_day, {})
+            if all(len(completed.get(medicine_id, [])) >= count for medicine_id, count in required.items()):
+                fully_completed_days += 1
+                completed_day_source_ids.extend(
+                    event_id
+                    for medicine_id in sorted(required)
+                    for event_id in sorted(completed.get(medicine_id, []))
+                )
+        current_day += timedelta(days=1)
+
+    if scheduled_days and all_taken_ids:
+        evidence.append(
+            _evidence(
+                "medication.scheduled_day_count",
+                scheduled_days,
+                all_taken_ids,
+                unit="days",
+            )
+        )
+        evidence.append(
+            _evidence(
+                "medication.fully_completed_day_count",
+                fully_completed_days,
+                sorted(set(completed_day_source_ids)) or all_taken_ids,
+                unit="days",
+            )
+        )
 
     by_medicine: dict[str, list[tuple[datetime, str]]] = defaultdict(list)
     medication_times: list[tuple[datetime, str]] = []
@@ -231,6 +343,45 @@ def summarize_records(request: AssistantRequest) -> DeterministicSummary:
                     len(entries),
                     [entry.id for entry in entries],
                     unit="records",
+                )
+            )
+
+    # Preserve the actual words the person recorded (for example, “Feeling
+    # good” or “Dizzy”), not merely their total count.  When a journal entry is
+    # linked to a check-in, its evidence also carries that exact dose event.
+    for entry_type in ("mood", "symptoms"):
+        for entry in journal_groups[entry_type]:
+            value = entry.mood if entry_type == "mood" else entry.symptom
+            if not value:
+                continue
+            source_ids = [entry.id]
+            relation = None
+            if entry.medication_event_id:
+                source_ids.append(entry.medication_event_id)
+                relation = "same_record"
+            else:
+                nearest = _nearest_medication(entry.recorded_at, medication_times, timezone)
+                if nearest is not None:
+                    offset, medication_event_id = nearest
+                    source_ids.append(medication_event_id)
+                    relation = _relation(offset)
+            evidence.append(
+                _evidence(
+                    f"{entry_type}.recorded_value",
+                    value,
+                    source_ids,
+                    relation=relation,
+                )
+            )
+
+    for event, _ in taken_events:
+        if event.feeling:
+            evidence.append(
+                _evidence(
+                    "medication.feeling",
+                    event.feeling,
+                    [event.id],
+                    relation="same_record",
                 )
             )
 

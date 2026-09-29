@@ -1,7 +1,7 @@
 [project]
-name = "pillmate-backend"
+name = "medistar-backend"
 version = "0.1.0"
-description = "Privacy-conscious FastAPI backend for PillMate's record summarizer"
+description = "Privacy-conscious FastAPI backend for MediStar's record summarizer"
 requires-python = ">=3.11"
 dependencies = [
     "certifi>=2024.8.30",

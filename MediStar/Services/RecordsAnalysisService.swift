@@ -2,9 +2,9 @@ import Foundation
 
 enum AIAnalysisConsent {
     static let currentVersion = "2026-09-15.3"
-    static let storageKey = "pillmate.aiAnalysisConsentVersion"
-    static let acceptedAtStorageKey = "pillmate.aiAnalysisConsentAcceptedAt"
-    static let acceptedLocaleStorageKey = "pillmate.aiAnalysisConsentLocale"
+    static let storageKey = "medistar.aiAnalysisConsentVersion"
+    static let acceptedAtStorageKey = "medistar.aiAnalysisConsentAcceptedAt"
+    static let acceptedLocaleStorageKey = "medistar.aiAnalysisConsentLocale"
     static let disclosure = "MediStar AI summarizes only the records selected for one request. It cannot diagnose, predict outcomes, decide whether a medicine is safe or effective, or recommend treatment, doses, or medication changes."
     static let medicalDisclaimer = "This is an informational summary of your records, not a diagnosis or treatment recommendation."
 
@@ -57,6 +57,65 @@ struct RecordsAnalysisResponse: Decodable, Equatable {
     let observations: [RecordsAnalysisObservation]
     let followUpQuestions: [String]
     let disclaimer: String
+    let doctorSummaryTable: DoctorSummaryTable?
+    let afterDoseVitalsTable: AfterDoseVitalsTable?
+    let checkInTimingTable: CheckInTimingTable?
+}
+
+struct DoctorSummaryTable: Decodable, Equatable {
+    let medicines: [DoctorSummaryMedicineRow]
+    let heartRate: DoctorSummaryVital?
+    let bloodPressure: DoctorSummaryVital?
+}
+
+struct DoctorSummaryMedicineRow: Decodable, Equatable, Identifiable {
+    let medicine: String
+    let symptoms: [DoctorSummarySymptom]
+
+    var id: String { medicine }
+}
+
+struct DoctorSummarySymptom: Decodable, Equatable, Identifiable {
+    let label: String
+    let count: Int
+
+    var id: String { "\(label)-\(count)" }
+}
+
+struct DoctorSummaryVital: Decodable, Equatable {
+    let range: String
+    let latest: String
+}
+
+struct AfterDoseVitalsTable: Decodable, Equatable {
+    let medicines: [AfterDoseVitalsMedicineRow]
+}
+
+struct AfterDoseVitalsMedicineRow: Decodable, Equatable, Identifiable {
+    let medicine: String
+    let heartRateCount: Int
+    let heartRateRange: String?
+    let bloodPressureCount: Int
+    let bloodPressureRange: String?
+
+    var id: String { medicine }
+}
+
+struct CheckInTimingTable: Decodable, Equatable {
+    let medicines: [CheckInTimingMedicineRow]
+    let completeDays: Int
+    let trackedDays: Int
+}
+
+struct CheckInTimingMedicineRow: Decodable, Equatable, Identifiable {
+    let medicine: String
+    let taken: Int
+    let onTime: Int
+    let early: Int
+    let late: Int
+    let withoutTiming: Int
+
+    var id: String { medicine }
 }
 
 enum RecordsAnalysisError: LocalizedError, Equatable {
@@ -193,7 +252,8 @@ struct RecordsAnalysisService {
 
         var request = URLRequest(url: baseURL.appendingPathComponent("v1/assistant/analyze"))
         request.httpMethod = "POST"
-        request.timeoutInterval = 30
+        // Allow one short upstream retry without the client cancelling first.
+        request.timeoutInterval = 45
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(credentials.identityToken)", forHTTPHeaderField: "Authorization")
@@ -248,7 +308,10 @@ struct RecordsAnalysisService {
                 summary: decoded.summary,
                 observations: decoded.observations,
                 followUpQuestions: decoded.followUpQuestions,
-                disclaimer: AIAnalysisConsent.medicalDisclaimer
+                disclaimer: AIAnalysisConsent.medicalDisclaimer,
+                doctorSummaryTable: decoded.doctorSummaryTable,
+                afterDoseVitalsTable: decoded.afterDoseVitalsTable,
+                checkInTimingTable: decoded.checkInTimingTable
             )
         } catch let error as RecordsAnalysisError {
             throw error
@@ -300,9 +363,55 @@ struct RecordsAnalysisService {
             medications.map { (Self.normalizedName($0.name), $0) },
             uniquingKeysWith: { first, _ in first }
         )
+        let dateFormatter = DateFormatter()
+        dateFormatter.calendar = calendar
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.timeZone = calendar.timeZone
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
         var aliasesByName: [String: String] = [:]
         var medicationPayloads: [MedicationPayload] = []
         var eventPayloads: [MedicationEventPayload] = []
+
+        // A consistency request needs the full schedule, including a medicine
+        // with no check-in on a missed day. Other question types keep sending
+        // only medicines represented by relevant records.
+        if questionType.includesSchedule {
+            for medicine in medications {
+                let normalizedName = Self.normalizedName(medicine.name)
+                let matchingRecords = recordsInRange.filter {
+                    Self.normalizedName($0.medicineName) == normalizedName
+                }
+                let earliestRecordDate = matchingRecords.map(\.recordDate).min()
+                let effectiveStart = min(medicine.createdAt, earliestRecordDate ?? medicine.createdAt)
+                let overlapsRange = effectiveStart < endExclusive
+                    && (medicine.endedAt == nil || medicine.endedAt! >= startDay)
+                guard overlapsRange, medicine.isActive || medicine.endedAt != nil else { continue }
+
+                let alias = "medicine-\(aliasesByName.count + 1)"
+                aliasesByName[normalizedName] = alias
+                medicationPayloads.append(
+                    MedicationPayload(
+                        id: alias,
+                        name: Self.nonempty(medicine.name, fallback: "Unnamed medicine", limit: 120),
+                        dose: questionType.includesMedicineDose
+                            ? Self.optionalLimited(medicine.dose, to: 120)
+                            : nil,
+                        timeWindow: Self.optionalLimited(
+                            DoseTimeWindow.display(
+                                schedule: medicine.schedule,
+                                bufferHours: doseWindowHours
+                            ),
+                            to: 120
+                        ),
+                        frequency: Self.optionalLimited(medicine.frequency, to: 80),
+                        isActive: medicine.isActive,
+                        startDate: dateFormatter.string(from: effectiveStart),
+                        endDate: medicine.endedAt.map { dateFormatter.string(from: $0) }
+                    )
+                )
+            }
+        }
 
         for (index, record) in recordsInRange.enumerated() {
             let normalizedName = Self.normalizedName(record.medicineName)
@@ -335,16 +444,25 @@ struct RecordsAnalysisService {
                             : nil,
                         frequency: questionType.includesSchedule
                             ? Self.optionalLimited(medicine?.frequency, to: 80)
+                            : nil,
+                        isActive: questionType.includesSchedule ? true : nil,
+                        startDate: questionType.includesSchedule
+                            ? dateFormatter.string(from: record.recordDate)
+                            : nil,
+                        endDate: questionType.includesSchedule
+                            ? dateFormatter.string(from: record.recordDate)
                             : nil
                     )
                 )
             }
 
+            let eventID = "event-\(index + 1)"
             eventPayloads.append(
                 MedicationEventPayload(
-                    id: "event-\(index + 1)",
+                    id: eventID,
                     medicineId: alias,
                     recordedAt: record.recordDate,
+                    isCompleted: record.takenAt != nil,
                     scheduledWindow: questionType.includesSchedule
                         ? Self.optionalLimited(
                             DoseTimeWindow.display(
@@ -355,10 +473,12 @@ struct RecordsAnalysisService {
                         )
                         : nil,
                     takenAt: Self.optionalLimited(record.takenAt, to: 80),
-                    // Health observations are sent only through journalEntries.
-                    // Medication events carry schedule/completion context only,
-                    // preventing one observation from being counted twice.
-                    feeling: nil,
+                    // Older check-ins may have a feeling saved directly on the
+                    // medication record. Include it for a symptoms request so it
+                    // remains discoverable after the Health Journal migration.
+                    feeling: questionType.includesSubjectiveDetails
+                        ? Self.optionalLimited(record.feeling, to: 80)
+                        : nil,
                     heartRate: nil,
                     bloodPressure: nil,
                     notes: nil
@@ -369,12 +489,6 @@ struct RecordsAnalysisService {
         guard medicationPayloads.count <= Self.maximumMedications else {
             throw RecordsAnalysisError.tooManyRecords
         }
-
-        let dateFormatter = DateFormatter()
-        dateFormatter.calendar = calendar
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.timeZone = calendar.timeZone
-        dateFormatter.dateFormat = "yyyy-MM-dd"
 
         return AssistantRequestPayload(
             requestId: UUID().uuidString,
@@ -424,12 +538,12 @@ struct RecordsAnalysisService {
 
     private static var configuredBaseURL: URL? {
 #if DEBUG
-        if Bundle.main.object(forInfoDictionaryKey: "PILLMATE_API_BASE_URL") == nil {
+        if Bundle.main.object(forInfoDictionaryKey: "MEDISTAR_API_BASE_URL") == nil {
             return URL(string: "http://127.0.0.1:8000")
         }
 #endif
         guard
-            let value = Bundle.main.object(forInfoDictionaryKey: "PILLMATE_API_BASE_URL") as? String,
+            let value = Bundle.main.object(forInfoDictionaryKey: "MEDISTAR_API_BASE_URL") as? String,
             let url = URL(string: value),
             let scheme = url.scheme?.lowercased(),
             url.host != nil
@@ -539,6 +653,50 @@ struct RecordsAnalysisService {
               response.followUpQuestions.count <= 5 else {
             return false
         }
+        if let table = response.doctorSummaryTable {
+            guard table.medicines.count <= 20,
+                  table.medicines.allSatisfy({
+                      (1...120).contains($0.medicine.count)
+                          && $0.symptoms.count <= 6
+                          && $0.symptoms.allSatisfy {
+                              (1...120).contains($0.label.count) && (1...500).contains($0.count)
+                          }
+                  }),
+                  [table.heartRate, table.bloodPressure].allSatisfy({ vital in
+                      guard let vital else { return true }
+                      return (1...80).contains(vital.range.count)
+                          && (1...40).contains(vital.latest.count)
+                  }) else {
+                return false
+            }
+        }
+        if let table = response.afterDoseVitalsTable {
+            guard table.medicines.count <= 20,
+                  table.medicines.allSatisfy({ row in
+                      (1...120).contains(row.medicine.count)
+                          && (0...500).contains(row.heartRateCount)
+                          && (0...500).contains(row.bloodPressureCount)
+                          && row.heartRateRange.map { (1...80).contains($0.count) } ?? true
+                          && row.bloodPressureRange.map { (1...80).contains($0.count) } ?? true
+                          && (row.heartRateRange != nil || row.bloodPressureRange != nil)
+                  }) else {
+                return false
+            }
+        }
+        if let table = response.checkInTimingTable {
+            guard table.medicines.count <= 20,
+                  (0...366).contains(table.completeDays),
+                  (0...366).contains(table.trackedDays),
+                  table.completeDays <= table.trackedDays,
+                  table.medicines.allSatisfy({ row in
+                      (1...120).contains(row.medicine.count)
+                          && [row.taken, row.onTime, row.early, row.late, row.withoutTiming]
+                              .allSatisfy { (0...500).contains($0) }
+                          && row.onTime + row.early + row.late + row.withoutTiming == row.taken
+                  }) else {
+                return false
+            }
+        }
         guard response.observations.allSatisfy({ observation in
             (1...600).contains(observation.text.count)
                 && (1...50).contains(observation.evidenceIds.count)
@@ -552,7 +710,11 @@ struct RecordsAnalysisService {
 
 private extension RecordsAnalysisQuestionType {
     var includesSchedule: Bool {
-        self == .consistency || self == .doctorSummary || self == .freeText
+        // A full schedule is only needed to calculate adherence. A doctor
+        // summary should describe the records that exist, rather than
+        // presenting an all-doses-complete count whose strict definition can
+        // be confused with the day stars shown in Records.
+        self == .consistency || self == .freeText
     }
 
     var includesMedicineDose: Bool {
@@ -572,7 +734,9 @@ private extension RecordsAnalysisQuestionType {
         case .consistency:
             return false
         case .sideEffects:
-            return journalType == .symptoms
+            // “Feeling good” is stored as a mood entry, while dizziness and
+            // nausea are symptoms. Both are relevant to an after-dose summary.
+            return journalType == .symptoms || journalType == .mood
         case .vitals:
             return journalType == .bloodPressure || journalType == .heartRate
         case .doctorSummary, .freeText:
@@ -605,12 +769,16 @@ private struct MedicationPayload: Encodable {
     let dose: String?
     let timeWindow: String?
     let frequency: String?
+    let isActive: Bool?
+    let startDate: String?
+    let endDate: String?
 }
 
 private struct MedicationEventPayload: Encodable {
     let id: String
     let medicineId: String
     let recordedAt: Date
+    let isCompleted: Bool
     let scheduledWindow: String?
     let takenAt: String?
     let feeling: String?

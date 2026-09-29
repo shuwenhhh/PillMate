@@ -1,21 +1,21 @@
-# Pillmate Onboarding Pages 1–3 — Design QA
+# MediStar Onboarding Pages 1–3 — Design QA
 
 - Source visual truth: `/var/folders/z_/l_zb6spj6f3fxfgn8ncv71cm0000gn/T/codex-clipboard-327f3fe7-6588-4ecc-a337-c00530b34def.png`
 - Page-two source: `/var/folders/z_/l_zb6spj6f3fxfgn8ncv71cm0000gn/T/codex-clipboard-ab7e2e86-b30a-4b2d-ba20-5012a317fd89.png`
 - Page-three source: `/var/folders/z_/l_zb6spj6f3fxfgn8ncv71cm0000gn/T/codex-clipboard-8ad45a30-9e0f-4876-8668-529b4cbe01ec.png`
-- Implementation screenshot: `/tmp/pillmate-onboarding-final.png`
-- Page-two implementation: `/tmp/pillmate-onboarding-page2-final.png`
-- Side-by-side comparison: `/tmp/pillmate-onboarding-final-comparison.png`
-- Page-two comparison: `/tmp/pillmate-onboarding-page2-final-comparison.png`
-- Page-three implementation: `/tmp/pillmate-onboarding-page3-final.png`
-- Page-three comparison: `/tmp/pillmate-onboarding-page3-comparison.png`
+- Implementation screenshot: `/tmp/medistar-onboarding-final.png`
+- Page-two implementation: `/tmp/medistar-onboarding-page2-final.png`
+- Side-by-side comparison: `/tmp/medistar-onboarding-final-comparison.png`
+- Page-two comparison: `/tmp/medistar-onboarding-page2-final-comparison.png`
+- Page-three implementation: `/tmp/medistar-onboarding-page3-final.png`
+- Page-three comparison: `/tmp/medistar-onboarding-page3-comparison.png`
 - Viewport: iPhone 17 Pro simulator, 402 × 874 points, light appearance
 - Pixels and normalization: source 492 × 1065 px; implementation 1206 × 2622 px at 3×. The implementation was normalized to 492 × 1064 px for the 984 × 1065 px side-by-side comparison.
 - State: first launch, Welcome page, no error message
 
 ## Full-view comparison evidence
 
-The final comparison preserves the reference hierarchy and rhythm: compact Pillmate lockup, two-line rounded display headline, two-line supporting copy, centered glass jar illustration, three-star page marker, one primary CTA, one secondary action, and quiet legal links. The native iOS status bar adds the expected platform-safe-area offset. The reference's Get started / Log in controls are intentionally replaced by the requested official Continue with Apple / Maybe later controls.
+The final comparison preserves the reference hierarchy and rhythm: compact MediStar lockup, two-line rounded display headline, two-line supporting copy, centered glass jar illustration, three-star page marker, one primary CTA, one secondary action, and quiet legal links. The native iOS status bar adds the expected platform-safe-area offset. The reference's Get started / Log in controls are intentionally replaced by the requested official Continue with Apple / Maybe later controls.
 
 ## Required fidelity surfaces
 
@@ -34,10 +34,10 @@ Focused region crops were not needed: at the normalized 984 × 1065 comparison s
 
 ## Comparison history
 
-1. Initial implementation evidence: `/tmp/pillmate-onboarding-v1-ready.png` and `/tmp/pillmate-onboarding-comparison.png`.
+1. Initial implementation evidence: `/tmp/medistar-onboarding-v1-ready.png` and `/tmp/medistar-onboarding-comparison.png`.
    - P2: the jar was about 10% smaller than the source and the page marker/CTA sat too high.
    - Fix: increased the hero slot from 41% to 45% of available height and increased the marker's top separation from 2 to 24 points.
-2. Post-fix evidence: `/tmp/pillmate-onboarding-final.png` and `/tmp/pillmate-onboarding-final-comparison.png`.
+2. Post-fix evidence: `/tmp/medistar-onboarding-final.png` and `/tmp/medistar-onboarding-final-comparison.png`.
    - Result: the hero, marker, and CTA now align with the source's major-region proportions; no P0/P1/P2 findings remain.
 
 ## Implementation checklist
@@ -66,10 +66,10 @@ The privacy-preferences page preserves the reference structure: native circular 
 
 ### Page-two comparison history
 
-1. Initial evidence: `/tmp/pillmate-onboarding-page2-v1.png` and `/tmp/pillmate-onboarding-page2-v1-comparison.png`.
+1. Initial evidence: `/tmp/medistar-onboarding-page2-v1.png` and `/tmp/medistar-onboarding-page2-v1-comparison.png`.
    - P2: oversized hero/title/card caused the Save preferences button to fall below the safe visible area; analytics copy wrapped to three lines.
    - Fix: reduced the hero slot from 34% to 30%, adjusted display type from 40 to 36 points, compressed vertical gaps, and tightened the card to a one-line title/two-line description.
-2. Post-fix evidence: `/tmp/pillmate-onboarding-page2-final.png` and `/tmp/pillmate-onboarding-page2-final-comparison.png`.
+2. Post-fix evidence: `/tmp/medistar-onboarding-page2-final.png` and `/tmp/medistar-onboarding-page2-final-comparison.png`.
    - Result: all required content is visible without scrolling and no P0/P1/P2 visual mismatches remain.
 
 ## Page-three full-view comparison evidence
@@ -96,17 +96,17 @@ Focused region crops were not needed because the normalized side-by-side evidenc
 
 ### Page-three comparison history
 
-1. Initial evidence: `/tmp/pillmate-onboarding-page3-v1.png`.
+1. Initial evidence: `/tmp/medistar-onboarding-page3-v1.png`.
    - P2: the generated character/input group and headline sat too low relative to the reference, and the field was taller than the source.
    - Fix: moved the hero group upward, reduced its reserved height from 335 to 295 points, moved the field overlap from 205 to 185 points, and reduced field height from 128 to 104 points.
-2. Post-fix evidence: `/tmp/pillmate-onboarding-page3-final.png` and `/tmp/pillmate-onboarding-page3-comparison.png`.
+2. Post-fix evidence: `/tmp/medistar-onboarding-page3-final.png` and `/tmp/medistar-onboarding-page3-comparison.png`.
    - Result: after accounting for native status-bar safe area, the hero, input, heading, marker, and CTA follow the source proportions with no actionable P0/P1/P2 mismatch.
 
 ## Personalized Home redesign — Design QA
 
 - Source visual truth: `/var/folders/z_/l_zb6spj6f3fxfgn8ncv71cm0000gn/T/codex-clipboard-7c5c0ed8-fe1b-4b16-be82-c38fbd4317f1.png`
-- Implementation screenshot: `/tmp/pillmate-home-redesign-final.png`
-- Side-by-side comparison: `/tmp/pillmate-home-redesign-comparison.png`
+- Implementation screenshot: `/tmp/medistar-home-redesign-final.png`
+- Side-by-side comparison: `/tmp/medistar-home-redesign-comparison.png`
 - Viewport: iPhone 17 Pro simulator, 402 × 874 points, light appearance
 - Pixels and normalization: source 853 × 1844 px; implementation 1206 × 2622 px at 3×. The implementation was normalized to 853 × 1844 px and appended beside the source.
 - State: Tuesday, September 15, 2026; evening greeting; preview nickname “Misaki”; two completed doses and active Today tab. The source uses Monday, September 14 and three completed doses, so date and completion-count differences are intentional live-data differences.
@@ -133,10 +133,10 @@ Focused region crops were not needed because the equal-size 1706 × 1844 compari
 
 ### Comparison history
 
-1. Initial evidence: `/tmp/pillmate-home-redesign-v1.png`.
+1. Initial evidence: `/tmp/medistar-home-redesign-v1.png`.
    - P2: the medications heading wrapped to two lines after adding the full year, and the three-card region extended beneath the floating tab bar.
    - Fix: gave the heading layout priority with one-line adaptive scaling, reduced date type to 12 points, and tightened cards from 90 to 82 points with 62-point time badges.
-2. Post-fix evidence: `/tmp/pillmate-home-redesign-final.png` and `/tmp/pillmate-home-redesign-comparison.png`.
+2. Post-fix evidence: `/tmp/medistar-home-redesign-final.png` and `/tmp/medistar-home-redesign-comparison.png`.
    - Result: the heading remains on one line and the three primary cards fit above the navigation at the reference density; additional live medicines continue below in the scrollable list.
 
 ### Implementation checklist
@@ -154,8 +154,8 @@ Focused region crops were not needed because the equal-size 1706 × 1844 compari
 ## Apple Profile — Design QA
 
 - Source visual truth: `/var/folders/z_/l_zb6spj6f3fxfgn8ncv71cm0000gn/T/codex-clipboard-16232348-9e5b-4210-a8a6-bde42de760ca.png`
-- Implementation screenshot: `/tmp/pillmate-profile-apple-final.png`
-- Side-by-side comparison: `/tmp/pillmate-profile-apple-comparison.png`
+- Implementation screenshot: `/tmp/medistar-profile-apple-final.png`
+- Side-by-side comparison: `/tmp/medistar-profile-apple-comparison.png`
 - Viewport: iPhone 17 Pro simulator, 402 × 874 points, light appearance
 - Pixels and normalization: source 853 × 1844 px; implementation 1206 × 2622 px at 3×. The implementation was normalized to 853 × 1844 px and appended beside the source.
 - State: Profile tab selected; preview name “Shuwen”; verified Apple-signed-in presentation; notifications enabled; reminder sound Default.
@@ -177,7 +177,7 @@ Focused region crops were not required because the normalized full-view comparis
 ### Identity and interaction verification
 
 - `Signed in with Apple` appears only when the saved Apple user identifier exists; the simulator visual uses an explicit Debug-only Apple-profile state.
-- Guest users receive `Using Pillmate as guest` instead of a fabricated login state.
+- Guest users receive `Using MediStar as guest` instead of a fabricated login state.
 - Edit profile opens a native sheet and persists the revised name/email.
 - Notification changes are persisted and cause active reminder requests to be resynchronized or cleared.
 - Reminder sound provides Default, Gentle, and None choices.
@@ -186,10 +186,10 @@ Focused region crops were not required because the normalized full-view comparis
 
 ### Comparison history
 
-1. Initial evidence: `/tmp/pillmate-profile-apple-v1.png`.
+1. Initial evidence: `/tmp/medistar-profile-apple-v1.png`.
    - P2: section and row spacing caused About and Sign out to remain below the bottom navigation at the initial scroll position.
    - Fix: reduced main top padding from 18 to 4 points, section gaps from 16 to 12 points, setting rows from 52 to 48 points, and the sign-out row from 54 to 50 points.
-2. Post-fix evidence: `/tmp/pillmate-profile-apple-final.png` and `/tmp/pillmate-profile-apple-comparison.png`.
+2. Post-fix evidence: `/tmp/medistar-profile-apple-final.png` and `/tmp/medistar-profile-apple-comparison.png`.
    - Result: all source sections and Sign out are visible in the initial viewport with no actionable P0/P1/P2 mismatch.
 
 ### Implementation checklist
@@ -208,9 +208,9 @@ Focused region crops were not required because the normalized full-view comparis
 ## Guest Profile — Design QA
 
 - Source visual truth: `/var/folders/z_/l_zb6spj6f3fxfgn8ncv71cm0000gn/T/codex-clipboard-4c4403c5-fed7-4efd-a1d1-0c460bf0a1cb.png`
-- Implementation screenshot: `/tmp/pillmate-profile-guest-v2.png`
-- Normalized implementation: `/tmp/pillmate-profile-guest-normalized.png`
-- Side-by-side comparison: `/tmp/pillmate-profile-guest-comparison.png`
+- Implementation screenshot: `/tmp/medistar-profile-guest-v2.png`
+- Normalized implementation: `/tmp/medistar-profile-guest-normalized.png`
+- Side-by-side comparison: `/tmp/medistar-profile-guest-comparison.png`
 - Viewport: iPhone 17 Pro simulator, 402 × 874 points, light appearance
 - Pixels and normalization: source 853 × 1843 px; implementation 1206 × 2622 px at 3×. The implementation was normalized to 853 × 1843 px and appended beside the source.
 - State: guest Profile tab, notifications enabled, reminder sound Default, no Apple credential saved.
@@ -225,7 +225,7 @@ The equal-size side-by-side comparison preserves the reference hierarchy: My Pro
 - Spacing and layout rhythm: 20-point page margins, 64-point avatar, 54-point Apple button, compact two-row cards, 14-point radii, and consistent section gaps keep all content visible above the tab bar.
 - Colors and visual tokens: pale lavender background, deep-plum text/icons, lavender gradient avatar, thin lavender card outlines, translucent white card fills, and saturated purple toggle follow the source palette.
 - Image quality and asset fidelity: this screen requires no custom raster illustration. Profile and setting marks use sharp native SF Symbols, while the Apple sign-in mark and label come from Apple's official `SignInWithAppleButton` component rather than a redrawn asset.
-- Copy and content: Guest, Using Pillmate on this device, Continue with Apple, Sign in to create your account, all three section labels, settings copy, and the guest reassurance match the supplied reference.
+- Copy and content: Guest, Using MediStar on this device, Continue with Apple, Sign in to create your account, all three section labels, settings copy, and the guest reassurance match the supplied reference.
 
 Focused region crops were not needed because the normalized full-view comparison keeps the Apple mark, identity copy, card borders, row icons, toggle, chevrons, footer, and navigation clearly readable.
 
@@ -246,8 +246,8 @@ Focused region crops were not needed because the normalized full-view comparison
 
 ### Comparison history
 
-1. First intended-state capture: `/tmp/pillmate-profile-guest-v1.png` landed on a previously selected Health information detail and was rejected as invalid comparison evidence.
-2. Corrected capture: the app was cleanly terminated and relaunched into the guest Profile root, producing `/tmp/pillmate-profile-guest-v2.png` and `/tmp/pillmate-profile-guest-comparison.png`.
+1. First intended-state capture: `/tmp/medistar-profile-guest-v1.png` landed on a previously selected Health information detail and was rejected as invalid comparison evidence.
+2. Corrected capture: the app was cleanly terminated and relaunched into the guest Profile root, producing `/tmp/medistar-profile-guest-v2.png` and `/tmp/medistar-profile-guest-comparison.png`.
    - Result: correct auth state, route, content, full-card visibility, and native platform chrome; no visual fix was required after the valid comparison.
 
 ### Implementation checklist
@@ -265,15 +265,15 @@ Focused region crops were not needed because the normalized full-view comparison
 ## Low-stock Reminder — Design QA
 
 - Source visual truth: `/var/folders/z_/l_zb6spj6f3fxfgn8ncv71cm0000gn/T/codex-clipboard-f5f3a1e2-e5bc-48b3-9107-9bae50b772db.png`
-- Implementation screenshot: `/tmp/pillmate-add-medicine-low-stock-final.png`
-- Combined comparison evidence: `/tmp/pillmate-low-stock-comparison.png`
+- Implementation screenshot: `/tmp/medistar-add-medicine-low-stock-final.png`
+- Combined comparison evidence: `/tmp/medistar-low-stock-comparison.png`
 - Viewport: iPhone 17 Pro simulator, 402 × 874 points, light appearance
 - Pixels and normalization: source 1774 × 887 px; implementation 1206 × 2622 px at 3×. The source was normalized to 1206 × 602 px and vertically appended with the implementation so both artifacts could be inspected together without suggesting a false same-viewport comparison.
 - State: Add medicine sheet, Supply section in view, low-stock reminder enabled, starting quantity 30 tablets, threshold 5 tablets.
 
 ### Comparison scope and full-view evidence
 
-The source is a visual direction for the notification—not a mock of the Add Medicine form—so exact screen geometry is intentionally not compared. The combined evidence verifies that the new control inherits Pillmate's pale lavender canvas, translucent rounded surface, deep-plum copy, purple state color, and compact single-purpose hierarchy. The production notification itself is rendered by iOS using the Pillmate app icon on the left and a single body line.
+The source is a visual direction for the notification—not a mock of the Add Medicine form—so exact screen geometry is intentionally not compared. The combined evidence verifies that the new control inherits MediStar's pale lavender canvas, translucent rounded surface, deep-plum copy, purple state color, and compact single-purpose hierarchy. The production notification itself is rendered by iOS using the MediStar app icon on the left and a single body line.
 
 ### Required fidelity surfaces
 
@@ -292,9 +292,9 @@ Focused crops were not needed because the combined evidence keeps the reference 
 
 ### Comparison history
 
-1. Initial editor capture: `/tmp/pillmate-add-medicine-low-stock-v1.png` showed the full form from the top, but the expanded threshold control was below the viewport and therefore invalid as final visual evidence.
+1. Initial editor capture: `/tmp/medistar-add-medicine-low-stock-v1.png` showed the full form from the top, but the expanded threshold control was below the viewport and therefore invalid as final visual evidence.
 2. Fix: added a Debug-only preview route that opens Add Medicine with Low stock reminder enabled and scrolls the Supply section into view; production scrolling and default-off behavior remain unchanged.
-3. Post-fix evidence: `/tmp/pillmate-add-medicine-low-stock-final.png` and `/tmp/pillmate-low-stock-comparison.png` show the complete Supply configuration with no clipping or density issue.
+3. Post-fix evidence: `/tmp/medistar-add-medicine-low-stock-final.png` and `/tmp/medistar-low-stock-comparison.png` show the complete Supply configuration with no clipping or density issue.
 
 ### Implementation checklist
 

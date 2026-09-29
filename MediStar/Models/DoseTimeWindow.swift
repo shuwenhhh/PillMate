@@ -3,7 +3,7 @@ import Foundation
 /// Shared interpretation of a scheduled dose time and the user's allowed
 /// after-time buffer. Reminders still fire at the scheduled start time.
 enum DoseTimeWindow {
-    static let storageKey = "pillmate.doseWindowHours"
+    static let storageKey = "medistar.doseWindowHours"
     static let defaultHours = 2.0
     static let choices: [Double] = [0.5, 1, 2, 3, 4]
 
@@ -87,6 +87,32 @@ enum DoseTimeWindow {
             }
         }
         return closest?.relation
+    }
+
+    /// Returns the starting minute of each scheduled daily dose. This is the
+    /// single parser shared by Today ordering and notification scheduling.
+    /// As-needed medicines deliberately have no scheduled minutes.
+    static func scheduledMinutes(in schedule: String) -> [Int] {
+        var seen = Set<Int>()
+
+        return schedule
+            .components(separatedBy: "·")
+            .compactMap { rawSegment in
+                let segment = rawSegment.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !segment.isEmpty, !isAsNeeded(segment) else { return nil }
+
+                let rangeParts = segment
+                    .replacingOccurrences(of: "—", with: "–")
+                    .replacingOccurrences(of: "-", with: "–")
+                    .components(separatedBy: "–")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                guard let firstPart = rangeParts.first else { return nil }
+
+                let lastPart = rangeParts.last ?? firstPart
+                let minutes = clockMinutes(firstPart, inheritedSuffix: periodSuffix(in: lastPart))
+                guard let minutes, seen.insert(minutes).inserted else { return nil }
+                return minutes
+            }
     }
 
     private static func windows(schedule: String, bufferHours: Double) -> [Window] {

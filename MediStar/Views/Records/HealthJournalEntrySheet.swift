@@ -25,6 +25,13 @@ struct HealthJournalEntrySheet: View {
     private let moodOptions = ["Good", "Calm", "Okay", "Unwell"]
     private let severityOptions = ["Mild", "Moderate", "Severe"]
 
+    private var availableTypes: [HealthJournalEntryType] {
+        // Symptoms must always be connected to a completed medication check-in.
+        // A standalone journal entry is intentionally limited to daily mood and
+        // measurable vital signs.
+        medicationContext == nil ? [.mood, .bloodPressure, .heartRate] : [.symptoms]
+    }
+
     init(
         initialType: HealthJournalEntryType = .mood,
         medicationContext: MedicationJournalContext? = nil,
@@ -77,9 +84,11 @@ struct HealthJournalEntrySheet: View {
                         .background(RecordsPalette.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        ForEach(HealthJournalEntryType.allCases) { type in
-                            entryTypeButton(type)
+                    if availableTypes.count > 1 {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                            ForEach(availableTypes) { type in
+                                entryTypeButton(type)
+                            }
                         }
                     }
 
@@ -88,7 +97,7 @@ struct HealthJournalEntrySheet: View {
                 .padding(20)
             }
             .background(RecordsPalette.pageBackground.ignoresSafeArea())
-            .navigationTitle(medicationContext == nil ? "Add journal entry" : "Add health entry")
+            .navigationTitle(medicationContext == nil ? "Add journal entry" : "Record symptom")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

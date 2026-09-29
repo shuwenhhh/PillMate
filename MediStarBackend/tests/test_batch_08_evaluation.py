@@ -296,7 +296,7 @@ def test_prompt_injection_in_health_note_never_reaches_model() -> None:
     assert len(client.responses.calls) == 1
     assert injection not in client.responses.calls[0]["input"]
     assert result.disclaimer == DISCLAIMER
-    assert result.observations[0].evidence_ids == [evidence_id]
+    assert result.observations == []
     assert evidence_id in {item.id for item in result.evidence}
 
 
@@ -315,7 +315,8 @@ def test_invented_evidence_and_model_disclaimer_are_not_trusted() -> None:
 
     result = asyncio.run(AssistantService(client=client).generate(request))
 
-    assert result.status == "refusal"
-    assert result.evidence == []
+    assert result.status == "ok"
+    assert result.summary == "Unverified claim."
+    assert result.evidence
     assert result.observations == []
     assert result.disclaimer == DISCLAIMER

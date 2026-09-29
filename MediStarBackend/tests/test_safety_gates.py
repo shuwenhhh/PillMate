@@ -132,8 +132,7 @@ def test_medical_boundary_requests_are_refused_before_model(question: str) -> No
     assert result.observations == []
     assert result.evidence == []
     assert result.disclaimer == DISCLAIMER
-    assert client.events == ["moderation"]
-    assert question in client.moderations.calls[0]["input"]
+    assert client.events == []
 
 
 def test_dangerous_description_gets_neutral_local_safety_escalation() -> None:
@@ -149,7 +148,102 @@ def test_dangerous_description_gets_neutral_local_safety_escalation() -> None:
     assert result.evidence == []
     assert result.follow_up_questions == []
     assert result.disclaimer == DISCLAIMER
-    assert client.events == ["moderation"]
+    assert client.events == []
+
+
+@pytest.mark.parametrize(
+    ("question", "language"),
+    [
+        ("hi", "en-US"),
+        ("你好！", "zh-CN"),
+    ],
+)
+def test_standalone_greeting_is_sent_to_the_model_for_a_natural_reply(
+    question: str, language: str
+) -> None:
+    request = AssistantRequest.model_validate(safety_payload(question, language=language))
+    evidence_id = summarize_records(request).evidence[0].id
+    client = RecordingClient([False, False], ordinary_output(evidence_id))
+
+    result = asyncio.run(AssistantService(client=client).generate(request))
+
+    assert result.status == "ok"
+    assert client.events == ["model"]
+
+
+def test_doctor_summary_question_is_allowed_when_record_text_contains_advice() -> None:
+    payload = safety_payload("Which changes in my records may be useful to show my doctor?")
+    payload["medications"][0]["name"] = "Should I see a doctor"
+    request = AssistantRequest.model_validate(payload)
+    evidence_id = summarize_records(request).evidence[0].id
+    client = RecordingClient([False, False], ordinary_output(evidence_id))
+
+    result = asyncio.run(AssistantService(client=client).generate(request))
+
+    assert result.status == "ok"
+    assert client.events == ["moderation", "model"]
+
+
+def test_after_dose_feelings_is_sent_to_the_model() -> None:
+    payload = safety_payload("I want to know my symptoms after taking Vitamin D")
+    payload["medications"][0]["name"] = "Vitamin D3"
+    payload["journalEntries"] = [
+        {
+            "id": "journal-1",
+            "entryType": "mood",
+            "recordedAt": "2026-09-14T01:00:00+08:00",
+            "mood": "Feeling good",
+            "medicationEventId": "dose-1",
+        }
+    ]
+    request = AssistantRequest.model_validate(payload)
+    evidence_id = summarize_records(request).evidence[0].id
+    client = RecordingClient([False, False], ordinary_output(evidence_id))
+
+    result = asyncio.run(AssistantService(client=client).generate(request))
+
+    assert result.status == "ok"
+    assert client.events == ["moderation", "model"]
+
+
+def test_recorded_symptoms_question_is_not_refused_by_server_policy() -> None:
+    request = AssistantRequest.model_validate(
+        safety_payload("Which symptoms were recorded most often near medication check-ins?")
+    )
+    evidence_id = summarize_records(request).evidence[0].id
+    client = RecordingClient([False, False], ordinary_output(evidence_id))
+
+    result = asyncio.run(AssistantService(client=client).generate(request))
+
+    assert result.status == "ok"
+    assert "cannot provide" not in result.summary.lower()
+    assert client.events == ["moderation", "model"]
+
+
+def test_doctor_summary_is_sent_to_the_model() -> None:
+    payload = safety_payload("Which changes in my records may be useful to show my doctor?")
+    payload["questionType"] = "doctor_summary"
+    request = AssistantRequest.model_validate(payload)
+    evidence_id = summarize_records(request).evidence[0].id
+    client = RecordingClient([False, False], ordinary_output(evidence_id))
+
+    result = asyncio.run(AssistantService(client=client).generate(request))
+
+    assert result.status == "ok"
+    assert client.events == ["model"]
+
+
+def test_check_in_timing_is_sent_to_the_model() -> None:
+    payload = safety_payload("How many completed check-ins were on time?")
+    payload["questionType"] = "consistency"
+    request = AssistantRequest.model_validate(payload)
+    evidence_id = summarize_records(request).evidence[0].id
+    client = RecordingClient([False, False], ordinary_output(evidence_id))
+
+    result = asyncio.run(AssistantService(client=client).generate(request))
+
+    assert result.status == "ok"
+    assert client.events == ["model"]
 
 
 @pytest.mark.parametrize(
@@ -180,7 +274,7 @@ def test_http_endpoint_returns_server_controlled_safety_status(
     assert response.status_code == 200
     assert response.json()["status"] == expected_status
     assert response.json()["disclaimer"] == DISCLAIMER
-    assert client.events == ["moderation"]
+    assert client.events == []
 
 
 def test_flagged_input_is_refused_without_model_call() -> None:
@@ -194,7 +288,7 @@ def test_flagged_input_is_refused_without_model_call() -> None:
     assert client.events == ["moderation"]
 
 
-def test_ordinary_summary_is_moderated_before_and_after_model() -> None:
+def test_ordinary_summary_is_moderated_before_model_only() -> None:
     request = AssistantRequest.model_validate(safety_payload("Summarize the recorded dates."))
     evidence_id = summarize_records(request).evidence[0].id
     client = RecordingClient([False, False], ordinary_output(evidence_id))
@@ -202,14 +296,12 @@ def test_ordinary_summary_is_moderated_before_and_after_model() -> None:
     result = asyncio.run(AssistantService(client=client).generate(request))
 
     assert result.status == "ok"
-    assert result.observations[0].evidence_ids == [evidence_id]
+    assert result.observations == []
+    assert result.evidence[0].id == evidence_id
     assert result.disclaimer == DISCLAIMER
-    assert client.events == ["moderation", "model", "moderation"]
-    assert len(client.moderations.calls) == 2
+    assert client.events == ["moderation", "model"]
+    assert len(client.moderations.calls) == 1
     assert client.moderations.calls[0]["model"] == settings.openai_moderation_model
-    assert "disclaimer" not in client.moderations.calls[1]["input"]
-
-
 @pytest.mark.parametrize(
     "question",
     [
@@ -226,21 +318,7 @@ def test_non_medical_phrasing_is_not_overblocked(question: str) -> None:
     result = asyncio.run(AssistantService(client=client).generate(request))
 
     assert result.status == "ok"
-    assert client.events == ["moderation", "model", "moderation"]
-
-
-def test_flagged_model_output_is_refused() -> None:
-    request = AssistantRequest.model_validate(safety_payload("Summarize the recorded dates."))
-    evidence_id = summarize_records(request).evidence[0].id
-    client = RecordingClient([False, True], ordinary_output(evidence_id))
-
-    result = asyncio.run(AssistantService(client=client).generate(request))
-
-    assert result.status == "refusal"
-    assert result.observations == []
-    assert result.evidence == []
-    assert result.disclaimer == DISCLAIMER
-    assert client.events == ["moderation", "model", "moderation"]
+    assert client.events == ["moderation", "model"]
 
 
 @pytest.mark.parametrize(
@@ -267,7 +345,7 @@ def test_restricted_model_output_is_refused_after_moderation(unsafe_summary: str
 
     assert result.status == "refusal"
     assert result.disclaimer == DISCLAIMER
-    assert client.events == ["moderation", "model", "moderation"]
+    assert client.events == ["moderation", "model"]
 
 
 def test_dangerous_model_copy_is_replaced_with_neutral_server_escalation() -> None:
@@ -306,7 +384,7 @@ def test_additional_urgent_signals_are_escalated_before_model(
     assert result.status == "safety_escalation"
     assert result.observations == []
     assert result.evidence == []
-    assert client.events == ["moderation"]
+    assert client.events == []
 
 
 def test_missing_moderation_result_fails_closed() -> None:
@@ -320,16 +398,33 @@ def test_missing_moderation_result_fails_closed() -> None:
         asyncio.run(SafetyService(client=client).is_flagged("record content"))
 
 
-def test_unverified_model_evidence_id_is_refused() -> None:
+def test_unverified_model_evidence_id_hides_only_that_bullet() -> None:
     request = AssistantRequest.model_validate(safety_payload("Summarize the recorded dates."))
     output = ordinary_output("evidence:invented")
     client = RecordingClient([False, False], output)
 
     result = asyncio.run(AssistantService(client=client).generate(request))
 
-    assert result.status == "refusal"
-    assert "verify the evidence" in result.summary
+    assert result.status == "ok"
+    assert result.summary == "One medication event was recorded."
     assert result.observations == []
-    assert result.evidence == []
+    assert result.evidence
     assert result.disclaimer == DISCLAIMER
-    assert client.events == ["moderation", "model", "moderation"]
+    assert client.events == ["moderation", "model"]
+
+
+def test_model_repeating_the_disclaimer_does_not_turn_a_valid_summary_into_a_refusal() -> None:
+    request = AssistantRequest.model_validate(
+        safety_payload("Which symptoms were recorded most often near medication check-ins?")
+    )
+    evidence_id = summarize_records(request).evidence[0].id
+    output = ordinary_output(evidence_id).model_copy(
+        update={"summary": f"One symptom was recorded. {DISCLAIMER}"}
+    )
+    client = RecordingClient([False, False], output)
+
+    result = asyncio.run(AssistantService(client=client).generate(request))
+
+    assert result.status == "ok"
+    assert result.summary == "One symptom was recorded"
+    assert result.disclaimer == DISCLAIMER

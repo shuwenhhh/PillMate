@@ -4,12 +4,12 @@ import AVFAudio
 import AudioToolbox
 
 struct ProfileView: View {
-    @AppStorage("pillmate.appleUserID") private var appleUserID = ""
-    @AppStorage("pillmate.profileName") private var profileName = ""
-    @AppStorage("pillmate.profileEmail") private var profileEmail = ""
-    @AppStorage("pillmate.profileIsComplete") private var profileIsComplete = false
-    @AppStorage("pillmate.hasEnteredApp") private var hasEnteredApp = false
-    @AppStorage("pillmate.notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("medistar.appleUserID") private var appleUserID = ""
+    @AppStorage("medistar.profileName") private var profileName = ""
+    @AppStorage("medistar.profileEmail") private var profileEmail = ""
+    @AppStorage("medistar.profileIsComplete") private var profileIsComplete = false
+    @AppStorage("medistar.hasEnteredApp") private var hasEnteredApp = false
+    @AppStorage("medistar.notificationsEnabled") private var notificationsEnabled = true
     @AppStorage(ReminderSoundChoice.storageKey) private var reminderSound = ReminderSoundChoice.defaultChoice.rawValue
     @AppStorage(DoseTimeWindow.storageKey) private var doseWindowHours = DoseTimeWindow.defaultHours
     @AppStorage(AIAnalysisConsent.storageKey) private var aiConsentVersion = ""
@@ -213,7 +213,7 @@ struct ProfileView: View {
 
     private var isSignedInWithApple: Bool {
 #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-pillmate.previewAppleProfile") {
+        if ProcessInfo.processInfo.arguments.contains("-medistar.previewAppleProfile") {
             return true
         }
 #endif
@@ -223,7 +223,7 @@ struct ProfileView: View {
     private var displayName: String {
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        if let flagIndex = arguments.firstIndex(of: "-pillmate.previewProfileName"),
+        if let flagIndex = arguments.firstIndex(of: "-medistar.previewProfileName"),
            arguments.indices.contains(flagIndex + 1) {
             return arguments[flagIndex + 1]
         }
@@ -367,7 +367,7 @@ struct ProfileView: View {
         rowDivider
 
         NavigationLink {
-            AboutPillMateView()
+            AboutMediStarView()
         } label: {
             settingsRow(
                 icon: showSubtitles ? "info.circle" : "questionmark.circle",
@@ -495,7 +495,7 @@ struct ProfileView: View {
 
 private struct PrivacyAndDataView: View {
     @Environment(\.modelContext) private var modelContext
-    @AppStorage("pillmate.hasEnteredApp") private var hasEnteredApp = false
+    @AppStorage("medistar.hasEnteredApp") private var hasEnteredApp = false
 
     @State private var showDeleteConfirmation = false
     @State private var deletionError: String?
@@ -782,7 +782,7 @@ private struct EditProfileSheet: View {
     }
 }
 
-private struct AboutPillMateView: View {
+private struct AboutMediStarView: View {
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
     }
