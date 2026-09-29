@@ -145,7 +145,13 @@ struct ContentView: View {
                 shouldOpenFirstMedicineEditor = false
             }
 #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-medistar.previewAddMedicine") {
+            if ProcessInfo.processInfo.arguments.contains("-medistar.previewToday") {
+                selectedTab = 0
+            } else if ProcessInfo.processInfo.arguments.contains("-medistar.previewRecords") {
+                selectedTab = 1
+            } else if ProcessInfo.processInfo.arguments.contains("-medistar.previewAssistant") {
+                selectedTab = 2
+            } else if ProcessInfo.processInfo.arguments.contains("-medistar.previewAddMedicine") {
                 selectedTab = 3
             } else if ProcessInfo.processInfo.arguments.contains("-medistar.previewProfile") {
                 selectedTab = 4
