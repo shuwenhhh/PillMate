@@ -28,7 +28,9 @@ struct MediStarApp: App {
 private struct AppEntryView: View {
     @Query private var medicineEntities: [MedicineEntity]
     @AppStorage("medistar.hasEnteredApp") private var hasEnteredApp = false
-    @AppStorage("medistar.awaitingComfortPreferences") private var awaitingComfortPreferences = false
+    // Retained only to migrate someone who stopped on the removed analytics
+    // preference screen in an earlier build.
+    @AppStorage("medistar.awaitingComfortPreferences") private var legacyAwaitingComfortPreferences = false
     @AppStorage("medistar.awaitingProfileSetup") private var awaitingProfileSetup = false
     @AppStorage("medistar.profileIsComplete") private var profileIsComplete = false
     @AppStorage("medistar.profileName") private var profileName = ""
@@ -45,22 +47,11 @@ private struct AppEntryView: View {
                     onSkip: {},
                     onComplete: {}
                 )
-            } else if awaitingComfortPreferences {
-                ComfortPreferencesView(
-                    onBack: {
-                        awaitingComfortPreferences = false
-                    },
-                    onSave: {
-                        awaitingComfortPreferences = false
-                        awaitingProfileSetup = true
-                    }
-                )
             } else if awaitingProfileSetup {
                 OnboardingProfileSetupView(
                     name: $profileName,
                     onBack: {
                         awaitingProfileSetup = false
-                        awaitingComfortPreferences = true
                     },
                     onSkip: completeOnboarding,
                     onComplete: completeOnboarding
@@ -80,7 +71,7 @@ private struct AppEntryView: View {
             } else {
                 WelcomeView(
                     onContinueAsGuest: {
-                        awaitingComfortPreferences = true
+                        awaitingProfileSetup = true
                     },
                     onExistingAppleUser: {
                         hasEnteredApp = true
@@ -89,12 +80,17 @@ private struct AppEntryView: View {
                         profileName = name
                         profileEmail = email
                         shouldShowFirstMedicineGuide = true
-                        awaitingComfortPreferences = true
+                        awaitingProfileSetup = true
                     }
                 )
             }
         }
         .task(id: medicineEntities.count) {
+            if legacyAwaitingComfortPreferences {
+                legacyAwaitingComfortPreferences = false
+                awaitingProfileSetup = true
+            }
+
             // A person returning to an existing local profile should never be
             // routed through the first-medicine setup after an app update or
             // a stale onboarding flag.
@@ -107,7 +103,7 @@ private struct AppEntryView: View {
     private func completeOnboarding() {
         profileIsComplete = true
         awaitingProfileSetup = false
-        awaitingComfortPreferences = false
+        legacyAwaitingComfortPreferences = false
         hasEnteredApp = true
     }
 

@@ -18,6 +18,7 @@ from .auth import (
     InvalidAppleToken,
 )
 from .config import settings
+from .public_pages import router as public_pages_router
 from .schemas import (
     AssistantRequest,
     AssistantResponse,
@@ -50,6 +51,7 @@ app = FastAPI(
     version="0.1.0",
     description="Safe, records-only assistant endpoint for MediStar.",
 )
+app.include_router(public_pages_router)
 app.state.apple_token_verifier = AppleTokenVerifier()
 app.state.request_context_store = RequestContextStore()
 app.state.rate_limiter = PerUserRateLimiter(

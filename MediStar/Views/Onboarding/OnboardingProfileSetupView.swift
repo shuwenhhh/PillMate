@@ -138,17 +138,15 @@ struct OnboardingProfileSetupView: View {
 
     private var pageIndicator: some View {
         HStack(spacing: 15) {
-            ForEach(0..<2, id: \.self) { _ in
-                Image(systemName: "star")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(OnboardingPalette.indicator)
-            }
+            Image(systemName: "star")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(OnboardingPalette.indicator)
             Image(systemName: "star.fill")
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(Color(red: 1.00, green: 0.76, blue: 0.16))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Nickname, page 3 of 3")
+        .accessibilityLabel("Nickname, page 2 of 2")
     }
 
     private func continueTapped() {

@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    support_email: str = "jessicayudok@gmail.com"
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.6-terra"
     # Record summaries already receive deterministic facts, so extra reasoning

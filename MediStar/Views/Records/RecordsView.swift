@@ -44,11 +44,17 @@ struct RecordsView: View {
 
     @Binding var doses: [MedicineDose]
     @State private var selectedDate = Calendar.current.startOfDay(for: .now)
-    @State private var journalMedicationContext: MedicationJournalContext?
     @State private var showCalendar = false
-    @State private var showJournalEntrySheet = false
     @State private var selectedSection: RecordsSection = .healthJournal
-    @State private var journalEntryType: HealthJournalEntryType = .mood
+    @State private var journalEntrySheetRequest: JournalEntrySheetRequest?
+
+    private struct JournalEntrySheetRequest: Identifiable {
+        let id = UUID()
+        let type: HealthJournalEntryType
+        let medicationContext: MedicationJournalContext?
+        let initialDraft: HealthJournalDraft?
+        let editingEntryID: UUID?
+    }
 
     private enum RecordsSection: String, CaseIterable, Identifiable {
         case medicationHistory
@@ -189,6 +195,16 @@ struct RecordsView: View {
             .padding(.bottom, 24)
         }
         .background(RecordsPalette.pageBackground.ignoresSafeArea())
+        // This screen has no system navigation bar. Without an opaque top
+        // scrim, ScrollView content remains visible beneath the status bar
+        // while it is being scrolled, which makes the day stars collide with
+        // the clock and Dynamic Island.
+        .overlay(alignment: .top) {
+            RecordsPalette.pageBackground
+                .frame(height: 8)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+        }
         .task {
             runLegacyMedicationHealthMigrationIfNeeded()
         }
@@ -203,13 +219,13 @@ struct RecordsView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showJournalEntrySheet) {
+        .sheet(item: $journalEntrySheetRequest) { request in
             HealthJournalEntrySheet(
-                initialType: journalEntryType,
-                medicationContext: journalMedicationContext
+                initialType: request.type,
+                initialDraft: request.initialDraft,
+                medicationContext: request.medicationContext
             ) { draft in
-                saveJournalEntry(draft)
-                journalMedicationContext = nil
+                saveJournalEntry(draft, request: request)
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
@@ -327,19 +343,36 @@ struct RecordsView: View {
     }
 
     private func openJournalEntry(_ type: HealthJournalEntryType, for record: MedicationRecord? = nil) {
-        journalEntryType = type
         if let record {
             let entity = persistedRecord(for: record)
-            journalMedicationContext = MedicationJournalContext(
+            let medicationContext = MedicationJournalContext(
                 recordID: entity.id,
                 medicineName: entity.medicineName,
                 takenAt: entity.takenAt,
                 recordedAt: medicationEventDate(recordDate: entity.recordDate, takenAt: entity.takenAt)
             )
+            let existingEntry = journalEntries.first(where: {
+                $0.type == type && $0.medicationRecordID == entity.id
+            })
+            journalEntrySheetRequest = JournalEntrySheetRequest(
+                type: type,
+                medicationContext: medicationContext,
+                initialDraft: existingEntry.map(draft(from:)),
+                editingEntryID: existingEntry?.id
+            )
         } else {
-            journalMedicationContext = nil
+            let existingEntry = journalEntries.first(where: {
+                $0.type == type &&
+                    $0.medicationRecordID == nil &&
+                    Calendar.current.isDate($0.entryDate, inSameDayAs: selectedDate)
+            })
+            journalEntrySheetRequest = JournalEntrySheetRequest(
+                type: type,
+                medicationContext: nil,
+                initialDraft: existingEntry.map(draft(from:)),
+                editingEntryID: existingEntry?.id
+            )
         }
-        showJournalEntrySheet = true
     }
 
     private var selectedJournalEntries: [HealthJournalEntryEntity] {
@@ -700,14 +733,31 @@ struct RecordsView: View {
         .padding(.bottom, 12)
     }
 
-    private func saveJournalEntry(_ draft: HealthJournalDraft) {
-        let recordedAt = journalMedicationContext?.recordedAt ?? selectedDateWithCurrentTime()
+    private func saveJournalEntry(
+        _ draft: HealthJournalDraft,
+        request: JournalEntrySheetRequest
+    ) {
+        let recordedAt = request.medicationContext?.recordedAt ?? selectedDateWithCurrentTime()
+
+        if let editingEntryID = request.editingEntryID,
+           let existingEntry = journalEntries.first(where: { $0.id == editingEntryID }) {
+            existingEntry.recordedAt = recordedAt
+            existingEntry.mood = draft.mood
+            existingEntry.symptom = draft.symptom
+            existingEntry.severity = draft.severity
+            existingEntry.systolic = draft.systolic
+            existingEntry.diastolic = draft.diastolic
+            existingEntry.heartRate = draft.heartRate
+            existingEntry.note = draft.note
+            try? modelContext.save()
+            return
+        }
 
         // Symptoms belong to a specific medication event and may therefore be
         // recorded more than once per day. Mood and vital signs are daily
         // Health Journal check-ins: saving again updates that day's entry
         // instead of creating a second card for the same measure.
-        if journalMedicationContext == nil,
+        if request.medicationContext == nil,
            let existingEntry = journalEntries.first(where: {
                $0.type == draft.type &&
                $0.medicationRecordID == nil &&
@@ -736,11 +786,24 @@ struct RecordsView: View {
             diastolic: draft.diastolic,
             heartRate: draft.heartRate,
             note: draft.note,
-            medicationRecordID: journalMedicationContext?.recordID,
-            medicationName: journalMedicationContext?.medicineName
+            medicationRecordID: request.medicationContext?.recordID,
+            medicationName: request.medicationContext?.medicineName
         )
         modelContext.insert(entry)
         try? modelContext.save()
+    }
+
+    private func draft(from entry: HealthJournalEntryEntity) -> HealthJournalDraft {
+        HealthJournalDraft(
+            type: entry.type,
+            mood: entry.mood,
+            symptom: entry.symptom,
+            severity: entry.severity,
+            systolic: entry.systolic,
+            diastolic: entry.diastolic,
+            heartRate: entry.heartRate,
+            note: entry.note
+        )
     }
 
     private func persistedRecord(for record: MedicationRecord) -> MedicationRecordEntity {

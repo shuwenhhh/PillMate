@@ -261,11 +261,17 @@ struct ModernMedicineEditorView: View {
 
                     Spacer(minLength: 8)
 
-                    quantityControl(value: draft.originalQuantity) {
-                        draft.originalQuantity = max(1, draft.originalQuantity - 1)
-                        draft.lowStockThreshold = min(draft.lowStockThreshold, draft.originalQuantity)
-                    } increment: {
-                        draft.originalQuantity = min(999, draft.originalQuantity + 1)
+                    Picker("Starting quantity", selection: $draft.originalQuantity) {
+                        ForEach(1...max(999, draft.originalQuantity), id: \.self) { quantity in
+                            Text("\(quantity)").tag(quantity)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(width: 100, height: 120)
+                    .clipped()
+                    .onChange(of: draft.originalQuantity) { _, quantity in
+                        draft.lowStockThreshold = min(draft.lowStockThreshold, quantity)
                     }
 
                     Text("tablets")

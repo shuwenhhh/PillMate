@@ -109,12 +109,9 @@ struct WelcomeView: View {
             Image(systemName: "star")
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(OnboardingPalette.indicator)
-            Image(systemName: "star")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(OnboardingPalette.indicator)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Welcome, page 1 of 3")
+        .accessibilityLabel("Welcome, page 1 of 2")
     }
 
     private var legalLinks: some View {

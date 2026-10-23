@@ -17,6 +17,10 @@ enum LocalDataStore {
             }
             userDefaults.removeObject(forKey: key)
         }
+
+        // Analytics collection was never implemented, so retire the unused
+        // onboarding preference along with its removed screen.
+        userDefaults.removeObject(forKey: "medistar.shareUsageAnalytics")
     }
 
     static let schema = Schema([
@@ -63,32 +67,107 @@ enum LocalDataStore {
     }
 
 #if DEBUG
-    /// Retires data written by the old Debug-only sample-data switch. Health
-    /// records must always be entered by the person using the app.
+    /// Explicitly requested local demos only; normal launches never seed data.
     static func seedTestDataIfRequested(in modelContext: ModelContext) throws {
-        guard ProcessInfo.processInfo.arguments.contains("-medistar.seedAugSepTestData") else {
-            return
+        if ProcessInfo.processInfo.arguments.contains("-medistar.seedLocalDemoData") {
+            try seedLocalDemoData(in: modelContext)
         }
+    }
 
-        let marker = "medistar.removedSeededMedicationSymptoms.v1"
+    private static func seedLocalDemoData(in modelContext: ModelContext) throws {
+        let marker = "medistar.localDemoData.v1"
         guard !UserDefaults.standard.bool(forKey: marker) else { return }
 
-        let seededMedicineNames: Set<String> = ["vitamin d3", "metformin", "lisinopril", "sertraline"]
-        let seededSymptoms: Set<String> = [
-            "feeling good", "energetic", "feeling very tired", "mild stomach discomfort",
-            "lightheaded", "dizziness", "mild headache", "nausea"
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let createdAt = calendar.date(byAdding: .day, value: -21, to: today) ?? today
+        let medicines = [
+            MedicineEntity(
+                name: "Lisinopril",
+                dose: "10 mg",
+                schedule: "8:00 AM",
+                frequency: "Once a day",
+                originalQuantity: 30,
+                prescribedBy: "Dr. Chen",
+                purpose: "Blood pressure",
+                instructions: "Take with water",
+                starStyleRawValue: MedicationStarStyle.yellow.rawValue,
+                createdAt: createdAt
+            ),
+            MedicineEntity(
+                name: "Vitamin D3",
+                dose: "1,000 IU",
+                schedule: "9:00 AM",
+                frequency: "Once a day",
+                originalQuantity: 60,
+                purpose: "Vitamin supplement",
+                instructions: "Take with food",
+                starStyleRawValue: MedicationStarStyle.blue.rawValue,
+                createdAt: createdAt
+            ),
+            MedicineEntity(
+                name: "Metformin",
+                dose: "500 mg",
+                schedule: "7:00 PM",
+                frequency: "Once a day",
+                originalQuantity: 30,
+                prescribedBy: "Dr. Chen",
+                purpose: "Blood sugar support",
+                instructions: "Take with dinner",
+                starStyleRawValue: MedicationStarStyle.pink.rawValue,
+                createdAt: createdAt
+            )
         ]
-        let entries = try modelContext.fetch(FetchDescriptor<HealthJournalEntryEntity>())
-        for entry in entries where entry.type == .symptoms {
-            let medicineName = entry.medicationName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let symptom = entry.symptom?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if let medicineName, let symptom,
-               seededMedicineNames.contains(medicineName), seededSymptoms.contains(symptom) {
-                modelContext.delete(entry)
+
+        let existingMedicines = try modelContext.fetch(FetchDescriptor<MedicineEntity>())
+        for medicine in medicines where !existingMedicines.contains(where: {
+            $0.name.caseInsensitiveCompare(medicine.name) == .orderedSame
+        }) {
+            modelContext.insert(medicine)
+        }
+
+        let existingRecords = try modelContext.fetch(FetchDescriptor<MedicationRecordEntity>())
+        for dayOffset in -13...0 {
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: today) else { continue }
+            let rows: [(String, String, String, String?, String)] = [
+                ("Lisinopril", "10 mg", "8:00–10:00 AM", dayOffset == -8 ? nil : "8:12 AM", MedicationStarStyle.yellow.rawValue),
+                ("Vitamin D3", "1,000 IU", "9:00–11:00 AM", dayOffset == -4 || dayOffset == 0 ? nil : "8:45 AM", MedicationStarStyle.blue.rawValue),
+                ("Metformin", "500 mg", "7:00–9:00 PM", dayOffset == -2 || dayOffset == 0 ? nil : "9:18 PM", MedicationStarStyle.pink.rawValue)
+            ]
+
+            for row in rows where !existingRecords.contains(where: {
+                calendar.isDate($0.recordDate, inSameDayAs: day) &&
+                    $0.medicineName.caseInsensitiveCompare(row.0) == .orderedSame
+            }) {
+                modelContext.insert(MedicationRecordEntity(
+                    recordDate: day,
+                    medicineName: row.0,
+                    detail: row.1,
+                    timeWindow: row.2,
+                    takenAt: row.3,
+                    interval: "24 hours",
+                    starStyleRawValue: row.4
+                ))
             }
         }
+
+        let journalEntries: [HealthJournalEntryEntity] = [
+            HealthJournalEntryEntity(entryDate: today, type: .mood, mood: "Good", note: "Feeling focused today"),
+            HealthJournalEntryEntity(entryDate: calendar.date(byAdding: .day, value: -2, to: today) ?? today, type: .mood, mood: "Calm"),
+            HealthJournalEntryEntity(entryDate: calendar.date(byAdding: .day, value: -5, to: today) ?? today, type: .mood, mood: "Okay", note: "A little tired in the afternoon"),
+            HealthJournalEntryEntity(entryDate: calendar.date(byAdding: .day, value: -1, to: today) ?? today, type: .bloodPressure, systolic: 118, diastolic: 76),
+            HealthJournalEntryEntity(entryDate: calendar.date(byAdding: .day, value: -4, to: today) ?? today, type: .bloodPressure, systolic: 121, diastolic: 78),
+            HealthJournalEntryEntity(entryDate: calendar.date(byAdding: .day, value: -1, to: today) ?? today, type: .heartRate, heartRate: 72),
+            HealthJournalEntryEntity(entryDate: calendar.date(byAdding: .day, value: -6, to: today) ?? today, type: .heartRate, heartRate: 68),
+            HealthJournalEntryEntity(entryDate: calendar.date(byAdding: .day, value: -3, to: today) ?? today, type: .symptoms, symptom: "Mild headache", severity: "Mild", note: "Resolved after resting", medicationName: "Lisinopril"),
+            HealthJournalEntryEntity(entryDate: calendar.date(byAdding: .day, value: -7, to: today) ?? today, type: .symptoms, symptom: "Nausea", severity: "Mild", note: "Shortly after dinner", medicationName: "Metformin")
+        ]
+        journalEntries.forEach(modelContext.insert)
+
         try modelContext.save()
         UserDefaults.standard.set(true, forKey: marker)
+        UserDefaults.standard.set(true, forKey: "medistar.hasEnteredApp")
+        UserDefaults.standard.set("Misaki", forKey: "medistar.profileName")
     }
 #endif
 }
@@ -109,6 +188,7 @@ enum LocalDataDeletion {
 
         do {
             try modelContext.save()
+            try RecordsAssistantSessionStore.clear()
         } catch {
             modelContext.rollback()
             throw error

@@ -5,6 +5,7 @@ import SwiftUI
 struct RecordsAssistantView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AIAnalysisConsent.storageKey) private var aiConsentVersion = ""
     @AppStorage("medistar.appleUserID") private var appleUserID = ""
     @AppStorage("medistar.profileName") private var profileName = ""
@@ -12,10 +13,13 @@ struct RecordsAssistantView: View {
     @AppStorage("medistar.profileIsComplete") private var profileIsComplete = false
     @Query(sort: \MedicineEntity.createdAt) private var medications: [MedicineEntity]
 
+    let isActive: Bool
+
     @State private var customQuestion = ""
     @State private var selectedAnalysisDays = 30
     @State private var analysisState: AnalysisState = .idle
     @State private var conversation: [AnalysisExchange] = []
+    @State private var conversationSessionDay = Calendar.current.startOfDay(for: .now)
     @State private var lastAttempt: AnalysisAttempt?
     @State private var pendingConsentAttempt: AnalysisAttempt?
     @State private var analysisTask: Task<Void, Never>?
@@ -115,6 +119,20 @@ struct RecordsAssistantView: View {
         }
         .onDisappear {
             analysisTask?.cancel()
+        }
+        .onAppear {
+            restoreDailySession()
+        }
+        .onChange(of: isActive) { _, active in
+            guard active else { return }
+            restoreDailySession()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            restoreDailySession()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            restoreDailySession()
         }
         .onChange(of: aiConsentVersion) { _, newVersion in
             guard !AIAnalysisConsent.isGranted(newVersion) else { return }
@@ -712,6 +730,7 @@ struct RecordsAssistantView: View {
     }
 
     private func submit(question: String, type: RecordsAnalysisQuestionType) {
+        resetSessionIfNeeded()
         let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuestion.isEmpty else { return }
 
@@ -765,6 +784,7 @@ struct RecordsAssistantView: View {
                     )
                     analysisState = .idle
                 }
+                saveDailySession()
             } catch is CancellationError {
                 return
             } catch RecordsAnalysisError.noRecords {
@@ -779,6 +799,60 @@ struct RecordsAssistantView: View {
                 analysisState = .failure(.transport)
             }
         }
+    }
+
+    /// AI answers are useful while the user is working through today's
+    /// records, but they should not grow into an endless chat transcript.
+    /// Persist one local session per calendar day so tab switches and app
+    /// relaunches are seamless, then start clean on the next day.
+    private func restoreDailySession() {
+        let today = Calendar.current.startOfDay(for: .now)
+        let storedSessionData = RecordsAssistantSessionStore.load() ?? Data()
+
+        guard !storedSessionData.isEmpty,
+              let session = try? JSONDecoder().decode(
+                StoredAssistantSession.self,
+                from: storedSessionData
+              ),
+              Calendar.current.isDate(session.day, inSameDayAs: today) else {
+            resetDailySession(to: today)
+            return
+        }
+
+        conversationSessionDay = today
+        if conversation != session.conversation {
+            conversation = session.conversation
+        }
+    }
+
+    private func resetSessionIfNeeded() {
+        let today = Calendar.current.startOfDay(for: .now)
+        guard !Calendar.current.isDate(conversationSessionDay, inSameDayAs: today) else {
+            return
+        }
+        resetDailySession(to: today)
+    }
+
+    private func resetDailySession(to day: Date) {
+        analysisTask?.cancel()
+        analysisTask = nil
+        conversationSessionDay = day
+        conversation = []
+        customQuestion = ""
+        analysisState = .idle
+        lastAttempt = nil
+        pendingConsentAttempt = nil
+        pendingReauthenticationAttempt = nil
+        try? RecordsAssistantSessionStore.clear()
+    }
+
+    private func saveDailySession() {
+        let session = StoredAssistantSession(
+            day: conversationSessionDay,
+            conversation: conversation
+        )
+        guard let data = try? JSONEncoder().encode(session) else { return }
+        try? RecordsAssistantSessionStore.save(data)
     }
 
     /// The assistant page stays lightweight until the user explicitly submits
@@ -1122,10 +1196,25 @@ private struct AnalysisAttempt {
     let days: Int
 }
 
-private struct AnalysisExchange: Identifiable {
-    let id = UUID()
+private struct AnalysisExchange: Codable, Equatable, Identifiable {
+    let id: UUID
     let question: String
     let response: RecordsAnalysisResponse
+
+    init(
+        id: UUID = UUID(),
+        question: String,
+        response: RecordsAnalysisResponse
+    ) {
+        self.id = id
+        self.question = question
+        self.response = response
+    }
+}
+
+private struct StoredAssistantSession: Codable {
+    let day: Date
+    let conversation: [AnalysisExchange]
 }
 
 private struct AnalysisRecords {

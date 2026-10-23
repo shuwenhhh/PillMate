@@ -10,6 +10,9 @@ struct MedicationJournalContext {
 struct HealthJournalEntrySheet: View {
     let onSave: (HealthJournalDraft) -> Void
     let medicationContext: MedicationJournalContext?
+    let isEditing: Bool
+    let initialType: HealthJournalEntryType
+    let initialDraft: HealthJournalDraft?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,12 +37,23 @@ struct HealthJournalEntrySheet: View {
 
     init(
         initialType: HealthJournalEntryType = .mood,
+        initialDraft: HealthJournalDraft? = nil,
         medicationContext: MedicationJournalContext? = nil,
         onSave: @escaping (HealthJournalDraft) -> Void
     ) {
         self.onSave = onSave
         self.medicationContext = medicationContext
-        _selectedType = State(initialValue: initialType)
+        self.isEditing = initialDraft != nil
+        self.initialType = initialType
+        self.initialDraft = initialDraft
+        _selectedType = State(initialValue: medicationContext == nil ? (initialDraft?.type ?? initialType) : .symptoms)
+        _mood = State(initialValue: initialDraft?.mood ?? "")
+        _symptom = State(initialValue: initialDraft?.symptom ?? "")
+        _severity = State(initialValue: initialDraft?.severity ?? "Mild")
+        _systolic = State(initialValue: initialDraft?.systolic.map(String.init) ?? "")
+        _diastolic = State(initialValue: initialDraft?.diastolic.map(String.init) ?? "")
+        _heartRate = State(initialValue: initialDraft?.heartRate.map(String.init) ?? "")
+        _note = State(initialValue: initialDraft?.note ?? "")
     }
 
     private var canSave: Bool {
@@ -97,8 +111,15 @@ struct HealthJournalEntrySheet: View {
                 .padding(20)
             }
             .background(RecordsPalette.pageBackground.ignoresSafeArea())
-            .navigationTitle(medicationContext == nil ? "Add journal entry" : "Record symptom")
+            .navigationTitle(
+                isEditing
+                    ? (medicationContext == nil ? "Edit journal entry" : "Edit symptom")
+                    : (medicationContext == nil ? "Add journal entry" : "Record symptom")
+            )
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                applyInitialValues()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
@@ -265,5 +286,16 @@ struct HealthJournalEntrySheet: View {
             )
         )
         dismiss()
+    }
+
+    private func applyInitialValues() {
+        selectedType = medicationContext == nil ? (initialDraft?.type ?? initialType) : .symptoms
+        mood = initialDraft?.mood ?? ""
+        symptom = initialDraft?.symptom ?? ""
+        severity = initialDraft?.severity ?? "Mild"
+        systolic = initialDraft?.systolic.map(String.init) ?? ""
+        diastolic = initialDraft?.diastolic.map(String.init) ?? ""
+        heartRate = initialDraft?.heartRate.map(String.init) ?? ""
+        note = initialDraft?.note ?? ""
     }
 }

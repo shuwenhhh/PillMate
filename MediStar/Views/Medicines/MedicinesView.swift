@@ -69,6 +69,15 @@ struct MedicinesView: View {
             .padding(.bottom, 42)
         }
         .background(AppColors.background.ignoresSafeArea())
+        // The screen has no system navigation bar. Cover the status-bar safe
+        // area so scrolled medicine content never appears behind the clock or
+        // Dynamic Island.
+        .overlay(alignment: .top) {
+            AppColors.background
+                .frame(height: 8)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+        }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: selectedSection)
         .sheet(isPresented: $showAddMedicine) {
             MedicineEditorView(medicine: nil, defaultStarStyle: suggestedNewMedicineStyle) { newMedicine in

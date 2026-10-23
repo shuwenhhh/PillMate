@@ -1,5 +1,41 @@
 import Foundation
 
+enum RecordsAssistantSessionStore {
+    private static let fileName = "records-assistant-session.json"
+
+    static func load(fileManager: FileManager = .default) -> Data? {
+        guard let fileURL = try? sessionFileURL(fileManager: fileManager) else { return nil }
+        return try? Data(contentsOf: fileURL)
+    }
+
+    static func save(_ data: Data, fileManager: FileManager = .default) throws {
+        let fileURL = try sessionFileURL(fileManager: fileManager)
+        let directoryURL = fileURL.deletingLastPathComponent()
+        try fileManager.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true
+        )
+        try LocalDataStore.excludeFromBackup(directoryURL)
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    static func clear(fileManager: FileManager = .default) throws {
+        let fileURL = try sessionFileURL(fileManager: fileManager)
+        guard fileManager.fileExists(atPath: fileURL.path) else { return }
+        try fileManager.removeItem(at: fileURL)
+    }
+
+    private static func sessionFileURL(fileManager: FileManager) throws -> URL {
+        let applicationSupportURL = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        return applicationSupportURL.appendingPathComponent(fileName)
+    }
+}
+
 enum AIAnalysisConsent {
     static let currentVersion = "2026-09-15.3"
     static let storageKey = "medistar.aiAnalysisConsentVersion"
@@ -35,14 +71,14 @@ enum RecordsAnalysisQuestionType: String, Codable {
     case freeText = "free_text"
 }
 
-enum RecordsAnalysisStatus: String, Decodable {
+enum RecordsAnalysisStatus: String, Codable {
     case ok
     case needsClarification = "needs_clarification"
     case refusal
     case safetyEscalation = "safety_escalation"
 }
 
-struct RecordsAnalysisObservation: Decodable, Equatable, Identifiable {
+struct RecordsAnalysisObservation: Codable, Equatable, Identifiable {
     let text: String
     let evidenceIds: [String]
 
@@ -51,7 +87,7 @@ struct RecordsAnalysisObservation: Decodable, Equatable, Identifiable {
     }
 }
 
-struct RecordsAnalysisResponse: Decodable, Equatable {
+struct RecordsAnalysisResponse: Codable, Equatable {
     let status: RecordsAnalysisStatus
     let summary: String
     let observations: [RecordsAnalysisObservation]
@@ -62,36 +98,36 @@ struct RecordsAnalysisResponse: Decodable, Equatable {
     let checkInTimingTable: CheckInTimingTable?
 }
 
-struct DoctorSummaryTable: Decodable, Equatable {
+struct DoctorSummaryTable: Codable, Equatable {
     let medicines: [DoctorSummaryMedicineRow]
     let heartRate: DoctorSummaryVital?
     let bloodPressure: DoctorSummaryVital?
 }
 
-struct DoctorSummaryMedicineRow: Decodable, Equatable, Identifiable {
+struct DoctorSummaryMedicineRow: Codable, Equatable, Identifiable {
     let medicine: String
     let symptoms: [DoctorSummarySymptom]
 
     var id: String { medicine }
 }
 
-struct DoctorSummarySymptom: Decodable, Equatable, Identifiable {
+struct DoctorSummarySymptom: Codable, Equatable, Identifiable {
     let label: String
     let count: Int
 
     var id: String { "\(label)-\(count)" }
 }
 
-struct DoctorSummaryVital: Decodable, Equatable {
+struct DoctorSummaryVital: Codable, Equatable {
     let range: String
     let latest: String
 }
 
-struct AfterDoseVitalsTable: Decodable, Equatable {
+struct AfterDoseVitalsTable: Codable, Equatable {
     let medicines: [AfterDoseVitalsMedicineRow]
 }
 
-struct AfterDoseVitalsMedicineRow: Decodable, Equatable, Identifiable {
+struct AfterDoseVitalsMedicineRow: Codable, Equatable, Identifiable {
     let medicine: String
     let heartRateCount: Int
     let heartRateRange: String?
@@ -101,13 +137,13 @@ struct AfterDoseVitalsMedicineRow: Decodable, Equatable, Identifiable {
     var id: String { medicine }
 }
 
-struct CheckInTimingTable: Decodable, Equatable {
+struct CheckInTimingTable: Codable, Equatable {
     let medicines: [CheckInTimingMedicineRow]
     let completeDays: Int
     let trackedDays: Int
 }
 
-struct CheckInTimingMedicineRow: Decodable, Equatable, Identifiable {
+struct CheckInTimingMedicineRow: Codable, Equatable, Identifiable {
     let medicine: String
     let taken: Int
     let onTime: Int

@@ -17,6 +17,7 @@ struct ContentView: View {
 
     @State private var selectedTab = 0
     @State private var hasVisitedRecords = false
+    @State private var hasVisitedAssistant = false
     @State private var showDoseCelebration = false
     @State private var doseCelebrationRequestID = UUID()
     @State private var doses: [MedicineDose] = []
@@ -73,15 +74,14 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            AppColors.softBackground.ignoresSafeArea()
-
+            GeometryReader { safeArea in
             VStack(spacing: 0) {
                 ZStack {
                     switch selectedTab {
                     case 1:
                         EmptyView()
                     case 2:
-                        RecordsAssistantView()
+                        EmptyView()
                     case 3:
                         MedicinesView { endedMedicine in
                             endMedicine(endedMedicine)
@@ -101,9 +101,26 @@ struct ContentView: View {
                             .allowsHitTesting(selectedTab == 1)
                             .accessibilityHidden(selectedTab != 1)
                     }
+
+                    // Keep the assistant conversation alive after its first
+                    // visit. The answers are view state, so recreating this
+                    // screen on every tab switch used to clear the history.
+                    if selectedTab == 2 || hasVisitedAssistant {
+                        RecordsAssistantView(isActive: selectedTab == 2)
+                            .opacity(selectedTab == 2 ? 1 : 0)
+                            .allowsHitTesting(selectedTab == 2)
+                            .accessibilityHidden(selectedTab != 2)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
 
                 bottomNavigation
+            }
+            // Bound every tab to the parent's safe-area rectangle. Scroll
+            // views can otherwise draw overflow behind the system status bar.
+            .frame(width: safeArea.size.width, height: safeArea.size.height)
+            .clipped()
             }
 
             if showDoseCelebration {
@@ -117,6 +134,9 @@ struct ContentView: View {
             }
 
         }
+        // Keep the visual background edge-to-edge without making the content
+        // layout itself extend beneath the status bar and Dynamic Island.
+        .background(AppColors.softBackground.ignoresSafeArea())
         .preferredColorScheme(.light)
         .task {
             syncDosesWithStoredMedicines()
@@ -136,6 +156,8 @@ struct ContentView: View {
         .onChange(of: selectedTab) { _, tab in
             if tab == 1 {
                 hasVisitedRecords = true
+            } else if tab == 2 {
+                hasVisitedAssistant = true
             }
         }
         .onAppear {
