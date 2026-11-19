@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import time
+from pydantic import BaseModel, Field
 from typing import NoReturn
 from uuid import uuid4
 
@@ -19,6 +20,7 @@ from .auth import (
 )
 from .config import settings
 from .public_pages import router as public_pages_router
+from .services.account_deletion import revoke_authorization
 from .schemas import (
     AssistantRequest,
     AssistantResponse,
@@ -204,6 +206,24 @@ async def health() -> dict[str, str]:
         "ai_model": settings.openai_model,
         "reasoning_effort": AssistantService._reasoning_effort(),
     }
+
+
+class AccountDeletionRequest(BaseModel):
+    authorization_code: str = Field(min_length=1, max_length=8192)
+
+
+@app.post('/v1/account/delete')
+async def delete_account(
+    payload: AccountDeletionRequest,
+    request: Request,
+    user: AuthenticatedUser = Depends(require_apple_user),
+    nonce: str = Header(alias='X-Apple-Nonce'),
+) -> dict[str, str]:
+    await revoke_authorization(payload.authorization_code, nonce, user.subject,
+                               request.app.state.apple_token_verifier)
+    request.app.state.request_context_store.delete_all(user.subject)
+    request.app.state.rate_limiter.delete_user(user.subject)
+    return {'status': 'deleted'}
 
 
 @app.post("/v1/assistant/analyze", response_model=AssistantResponse)

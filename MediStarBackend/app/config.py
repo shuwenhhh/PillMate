@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # budget small reduces both latency and timeout risk.
     openai_max_output_tokens: int = Field(default=320, ge=64, le=4096)
     apple_client_id: str | None = None
+    apple_team_id: str | None = None
+    apple_key_id: str | None = None
+    apple_private_key: str | None = None
     apple_issuer: str = "https://appleid.apple.com"
     apple_jwks_url: str = "https://appleid.apple.com/auth/keys"
     apple_jwks_cache_seconds: int = Field(default=3600, ge=60, le=86400)

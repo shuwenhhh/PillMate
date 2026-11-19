@@ -44,7 +44,7 @@ main {{background:#fff;border-radius:24px;box-sizing:border-box;}} h1 {{font-siz
 @router.get('/privacy', response_class=HTMLResponse, include_in_schema=False)
 async def privacy() -> HTMLResponse:
     return page('Privacy Policy', '''
-<p class="meta">Last updated October 22, 2026</p>
+<p class="meta">Last updated November 3, 2026</p>
 <p class="intro">This policy explains how MediStar handles your information when you use the app and these support pages.</p>
 <h2>Records on your device</h2>
 <p>Your medicines, dose history, health journal and profile are stored locally. The app does not sync this database with CloudKit and excludes its application-support storage from device backups. Guest mode uses the same local records on that device. Signing out does not delete those records.</p>
@@ -55,11 +55,13 @@ async def privacy() -> HTMLResponse:
 <p>Apple may provide an account identifier, name and email when you sign in. Credentials are stored in the iOS Keychain. An Apple identity token and nonce go to our backend to verify AI requests; they are not sent to OpenAI. MediStar does not receive your Apple password.</p>
 <h2>Processing and retention</h2>
 <p>The backend does not save the health request body, question or generated answer to a database. It keeps per-user request metadata and rate-limit counters in server memory. Operational logs contain request identifiers, durations, status codes and error types, without health request bodies. Generated conversations may be stored locally by the app.</p>
+<p>Server-memory metadata is associated with your Apple account identifier and includes request identifiers, timestamps, response status and error types. These entries may remain until the server process restarts or you delete your account; there is currently no automatic retention deadline. Operational logs also include question categories, payload sizes and processing timings. Request identifiers can link logs to account metadata. We use this information for authentication, request limits, troubleshooting and service security, not advertising or tracking.</p>
+<p>Under OpenAI's default API controls, prompts and responses may be retained in abuse-monitoring logs for up to 30 days, or longer when legally required or reasonably necessary to prevent harm. The app does not assume Zero Data Retention is enabled. API content is not used for model training by default.</p>
 <p>OpenAI processing is subject to its service data controls; disabling response storage does not eliminate all provider retention. Hosting and AI providers may process technical information necessary to deliver and secure their services. See <a href="https://platform.openai.com/docs/guides/your-data">OpenAI data controls</a> and <a href="https://render.com/privacy">Render’s privacy policy</a> for their practices. Data may be processed outside your country.</p>
 <h2>Reminders and tracking</h2>
 <p>Medication reminders are scheduled on your device with notification permission. You can change that permission in iOS Settings. These public pages use no analytics scripts, advertising trackers or cookies. MediStar does not sell health information or use it for advertising.</p>
 <h2>Your choices and deletion</h2>
-<p>You can use local features as a guest without AI. Withdraw AI consent in Profile → AI analysis &amp; data. To remove medicines, journal entries, local conversation history, profile, credentials and reminders, use Profile → Privacy &amp; data → Delete all data. This action cannot be undone. Signing out alone keeps local health records. Deleting local records does not retroactively erase any provider logs subject to their retention policies.</p>
+<p>You can use local features as a guest without AI. Withdraw AI consent in Profile → AI analysis &amp; data. In Profile → Privacy &amp; data, signed-in users can choose Delete account &amp; data and authenticate with Apple again. After Apple authorization is revoked, the backend removes your in-memory request metadata and usage counters, and the app removes local medicines, journal entries, conversation history, profile, credentials and reminders. Guests can choose Delete all data to remove local data. This action cannot be undone. Signing out alone keeps local health records. Deletion does not retroactively erase provider logs subject to their retention policies.</p>
 <h2>Support correspondence</h2>
 <p>If you email support, your address and message will be handled to respond to your request. Avoid including sensitive health information.</p>
 <h2>Changes and contact</h2>

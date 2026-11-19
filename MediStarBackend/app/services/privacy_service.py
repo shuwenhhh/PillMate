@@ -90,6 +90,11 @@ class PerUserRateLimiter:
         self._daily_counts: dict[str, tuple[date, int]] = {}
         self._lock = RLock()
 
+    def delete_user(self, user_id: str) -> None:
+        with self._lock:
+            self._minute_events.pop(user_id, None)
+            self._daily_counts.pop(user_id, None)
+
     def consume(self, user_id: str) -> None:
         now = self._clock()
         if now.tzinfo is None:
